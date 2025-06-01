@@ -14,7 +14,10 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middlewares
-const allowedOrigins = ["http://localhost:5173"];
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://ser-frontend-livid.vercel.app/",
+];
 app.use(
   cors({
     origin: allowedOrigins,
