@@ -95,3 +95,8 @@ export const loginUser = async (req, res, next) => {
     next(err);
   }
 };
+
+// Get current user
+export const getMe = (req, res) => {
+  res.json({ user: req.user });
+};
