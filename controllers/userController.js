@@ -44,7 +44,16 @@ export const registerUser = async (req, res, next) => {
     const { rows } = await pool.query(insertQuery, values);
     const user = rows[0];
     const token = generateToken(user.id, user.email, user.role);
-    res.status(201).json({ user, token });
+
+    // Set JWT as HTTP-only cookie
+    res.cookie("auth_token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+    });
+
+    res.status(201).json({ user });
   } catch (err) {
     next(err);
   }
@@ -71,9 +80,17 @@ export const loginUser = async (req, res, next) => {
       return res.status(401).json({ message: "Invalid credentials." });
     }
     const token = generateToken(user.id, user.email, user.role);
-    // Remove password before sending user object
     delete user.password;
-    res.status(200).json({ user, token });
+
+    // Set JWT as HTTP-only cookie
+    res.cookie("auth_token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+    });
+
+    res.status(200).json({ user });
   } catch (err) {
     next(err);
   }
