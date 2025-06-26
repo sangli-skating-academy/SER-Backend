@@ -97,6 +97,21 @@ export const loginUser = async (req, res, next) => {
 };
 
 // Get current user
-export const getMe = (req, res) => {
-  res.json({ user: req.user });
+export const getMe = async (req, res) => {
+  try {
+    const { id } = req.user;
+    const result = await pool.query(
+      `SELECT id, username, email, full_name, phone, date_of_birth, gender, role FROM users WHERE id = $1`,
+      [id]
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({
+      message: "Failed to fetch user info.",
+      details: err.message,
+    });
+  }
 };

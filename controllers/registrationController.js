@@ -80,15 +80,51 @@ export async function registerForEvent(req, res) {
   }
 }
 
+// Get registrations for the logged-in user (dashboard)
 export async function getUserRegistrations(req, res) {
   try {
-    const userId = req.params.userId;
+    const userId = req.user.id; // Use authenticated user's id
     const regs = await pool.query(
-      "SELECT * FROM registrations WHERE user_id = $1",
+      `SELECT r.*, e.title as event_name, e.is_team_event, t.name as team_name
+       FROM registrations r
+       LEFT JOIN events e ON r.event_id = e.id
+       LEFT JOIN teams t ON r.team_id = t.id
+       WHERE r.user_id = $1
+       ORDER BY r.created_at DESC`,
       [userId]
     );
     res.json(regs.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch registrations." });
+    console.error('getUserRegistrations error:', err);
+    res.status(500).json({ error: "Failed to fetch registrations.", details: err.message });
+  }
+}
+
+// Cancel a registration (dashboard)
+export async function cancelRegistration(req, res) {
+  try {
+    const userId = req.user.id;
+    const registrationId = req.params.id;
+    // Only allow cancelling own registration
+    const regRes = await pool.query(
+      "SELECT * FROM registrations WHERE id = $1 AND user_id = $2",
+      [registrationId, userId]
+    );
+    if (!regRes.rows.length) {
+      return res.status(404).json({ error: "Registration not found." });
+    }
+    // Only allow cancelling if status is pending or confirmed
+    if (!["pending", "confirmed"].includes(regRes.rows[0].status)) {
+      return res
+        .status(400)
+        .json({ error: "Cannot cancel this registration." });
+    }
+    await pool.query(
+      "UPDATE registrations SET status = 'cancelled' WHERE id = $1",
+      [registrationId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to cancel registration." });
   }
 }

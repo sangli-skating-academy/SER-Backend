@@ -7,6 +7,7 @@ import fs from "fs";
 import {
   registerForEvent,
   getUserRegistrations,
+  cancelRegistration,
 } from "../controllers/registrationController.js";
 import auth from "../middleware/auth.js";
 
@@ -26,5 +27,11 @@ router.post("/", auth, upload.single("aadhaarImage"), registerForEvent);
 
 // Get registrations for a user (for duplicate check)
 router.get("/user/:userId", auth, getUserRegistrations);
+
+// Get registrations for the logged-in user (dashboard)
+router.get("/", auth, getUserRegistrations);
+
+// Cancel a registration (dashboard)
+router.patch("/:id/cancel", auth, cancelRegistration);
 
 export default router;
