@@ -109,6 +109,7 @@ CREATE TABLE registrations (
   registration_type VARCHAR(20) NOT NULL CHECK (registration_type IN ('individual', 'team')),
   status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled')),
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  user_details_id INT REFERENCES user_details(id) ON DELETE SET NULL, -- NEW: direct reference to user_details
   UNIQUE (user_id, event_id, team_id)
 );
 
@@ -139,8 +140,12 @@ CREATE TABLE user_details (
   category VARCHAR(20) CHECK (category IN ('quad', 'inline', 'beginner')),
   aadhaar_number VARCHAR(20),
   aadhaar_image VARCHAR(255),
+  event_id INT REFERENCES events(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE user_details
+ADD CONSTRAINT user_details_user_id_event_id_key UNIQUE (user_id, event_id);
 
 CREATE INDEX idx_user_details_user_id ON user_details(user_id);
 ```
@@ -195,6 +200,7 @@ CREATE TABLE contact_messages (
   name VARCHAR(255) NOT NULL,
   email VARCHAR(255) NOT NULL,
   phone VARCHAR(20),
+  subject VARCHAR(255) NOT NULL,
   message TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -238,7 +244,6 @@ For production environments, configure these in your hosting platform's environm
 ---
 
 ### Initial Data Import
-
 
 ---
 
@@ -295,5 +300,5 @@ As the application grows:
 
 ---
 
-Document Version: 2.0  
-Last Updated: May 30, 2025
+Document Version: 2.1  
+Last Updated: October 5, 2025

@@ -48,16 +48,22 @@ export async function registerForEvent(req, res) {
 
     // Insert registration
     const regRes = await pool.query(
-      "INSERT INTO registrations (user_id, team_id, event_id, registration_type, status) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-      [userId, teamId, eventId, registrationType, "pending"]
+      "INSERT INTO registrations (user_id, team_id, event_id, registration_type, status, user_details_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+      [userId, teamId, eventId, registrationType, "pending", null] // user_details_id will be updated below
     );
     const registrationId = regRes.rows[0].id;
 
-    // Insert user details (if not already present)
+    // Insert user details (per event, per user)
+    // Ensure user_details table has UNIQUE (user_id, event_id) in DB
     const detailsRes = await pool.query(
-      "INSERT INTO user_details (user_id, coach_name, club_name, gender, age_group, first_name, middle_name, last_name, district, date_of_birth, category, aadhaar_number, aadhaar_image) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (user_id) DO UPDATE SET coach_name=EXCLUDED.coach_name, club_name=EXCLUDED.club_name, gender=EXCLUDED.gender, age_group=EXCLUDED.age_group, first_name=EXCLUDED.first_name, middle_name=EXCLUDED.middle_name, last_name=EXCLUDED.last_name, district=EXCLUDED.district, date_of_birth=EXCLUDED.date_of_birth, category=EXCLUDED.category, aadhaar_number=EXCLUDED.aadhaar_number, aadhaar_image=EXCLUDED.aadhaar_image RETURNING id",
+      `INSERT INTO user_details (user_id, event_id, coach_name, club_name, gender, age_group, first_name, middle_name, last_name, district, date_of_birth, category, aadhaar_number, aadhaar_image)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       ON CONFLICT ON CONSTRAINT user_details_user_id_event_id_key DO UPDATE SET
+         coach_name=EXCLUDED.coach_name, club_name=EXCLUDED.club_name, gender=EXCLUDED.gender, age_group=EXCLUDED.age_group, first_name=EXCLUDED.first_name, middle_name=EXCLUDED.middle_name, last_name=EXCLUDED.last_name, district=EXCLUDED.district, date_of_birth=EXCLUDED.date_of_birth, category=EXCLUDED.category, aadhaar_number=EXCLUDED.aadhaar_number, aadhaar_image=EXCLUDED.aadhaar_image
+       RETURNING id`,
       [
         userId,
+        eventId,
         userDetails.coach_name,
         userDetails.club_name,
         userDetails.gender,
@@ -66,17 +72,23 @@ export async function registerForEvent(req, res) {
         userDetails.middle_name,
         userDetails.last_name,
         userDetails.district,
-        userDetails.dob,
+        userDetails.date_of_birth || userDetails.dob,
         userDetails.category,
         userDetails.aadhaar_number,
         aadhaarImage,
       ]
     );
+    const userDetailsId = detailsRes.rows[0].id;
+    // Update registration with user_details_id
+    await pool.query(
+      "UPDATE registrations SET user_details_id = $1 WHERE id = $2",
+      [userDetailsId, registrationId]
+    );
 
     res.status(201).json({ id: registrationId });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Registration failed." });
+    console.error('Registration error details:', err);
+    res.status(500).json({ error: "Registration failed.", details: err.message });
   }
 }
 
@@ -95,8 +107,10 @@ export async function getUserRegistrations(req, res) {
     );
     res.json(regs.rows);
   } catch (err) {
-    console.error('getUserRegistrations error:', err);
-    res.status(500).json({ error: "Failed to fetch registrations.", details: err.message });
+    console.error("getUserRegistrations error:", err);
+    res
+      .status(500)
+      .json({ error: "Failed to fetch registrations.", details: err.message });
   }
 }
 

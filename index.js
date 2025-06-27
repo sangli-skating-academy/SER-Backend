@@ -7,6 +7,7 @@ import userRoutes from "./routes/userRoutes.js";
 import eventRoutes from "./routes/eventRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import registrationRoutes from "./routes/registrationRoutes.js";
+import userDetailsRoutes from "./routes/userDetailsRoutes.js";
 import errorHandler from "./middleware/errorHandler.js";
 
 dotenv.config();
@@ -22,7 +23,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: allowedOrigins,
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PATCH", "DELETE"],
     credentials: true,
   })
 );
@@ -36,6 +37,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/registrations", registrationRoutes);
+app.use("/api/user-details", userDetailsRoutes);
 app.use(errorHandler);
 
 app.listen(PORT, () => {
