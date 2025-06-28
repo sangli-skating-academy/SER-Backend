@@ -115,3 +115,40 @@ export const getMe = async (req, res) => {
     });
   }
 };
+
+// Update current user
+export const updateMe = async (req, res) => {
+  try {
+    const { id } = req.user;
+    const { full_name, username, email, phone, date_of_birth, gender } =
+      req.body;
+    // Only update provided fields
+    const fields = { full_name, username, email, phone, date_of_birth, gender };
+    const setClauses = [];
+    const values = [];
+    let idx = 1;
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) {
+        setClauses.push(`${key} = $${idx}`);
+        values.push(value);
+        idx++;
+      }
+    }
+    if (setClauses.length === 0) {
+      return res.status(400).json({ message: "No fields to update." });
+    }
+    values.push(id);
+    const updateQuery = `UPDATE users SET ${setClauses.join(
+      ", "
+    )} WHERE id = $${idx} RETURNING id, username, email, full_name, phone, date_of_birth, gender, role`;
+    const result = await pool.query(updateQuery, values);
+    if (!result.rows.length) {
+      return res.status(404).json({ message: "User not found." });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ message: "Failed to update user info.", details: err.message });
+  }
+};
