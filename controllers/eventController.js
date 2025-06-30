@@ -5,7 +5,7 @@ export const getEvents = async (req, res, next) => {
   try {
     let query = "SELECT * FROM events";
     const params = [];
-    const { ageGroup, featured } = req.query;
+    const { ageGroup, featured, includePast } = req.query;
     const conditions = [];
 
     if (ageGroup) {
@@ -15,6 +15,10 @@ export const getEvents = async (req, res, next) => {
     if (featured === "true") {
       conditions.push("is_featured = $" + (params.length + 1));
       params.push(true);
+    }
+    // Only show future events unless includePast=true
+    if (includePast !== "true") {
+      conditions.push("start_date >= CURRENT_DATE");
     }
     if (conditions.length > 0) {
       query += " WHERE " + conditions.join(" AND ");

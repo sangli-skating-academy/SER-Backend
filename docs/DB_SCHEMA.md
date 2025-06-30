@@ -32,17 +32,9 @@ CREATE INDEX idx_users_username ON users(username);
 
 ---
 
-#### 2. Event Categories
+#### 2. (Removed) Event Categories
 
-Categorizes different types of events offered.
-
-```sql
-CREATE TABLE event_categories (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  description TEXT
-);
-```
+The event_categories table has been dropped. Event categories are now handled via hashtags in the events table.
 
 ---
 
@@ -64,14 +56,14 @@ CREATE TABLE events (
   price_per_team DECIMAL(10, 2),
   max_team_size INT,
   image_url TEXT,
-  category_id INT NOT NULL REFERENCES event_categories(id) ON DELETE CASCADE,
+  hashtags TEXT[] DEFAULT '{}', -- Array of hashtags for flexible categorization
   is_featured BOOLEAN,
   created_by INT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_events_category_id ON events(category_id);
 CREATE INDEX idx_events_created_by ON events(created_by);
+CREATE INDEX idx_events_hashtags ON events USING GIN (hashtags);
 ```
 
 ---
@@ -300,5 +292,5 @@ As the application grows:
 
 ---
 
-Document Version: 2.1  
+Document Version: 2.2  
 Last Updated: October 5, 2025

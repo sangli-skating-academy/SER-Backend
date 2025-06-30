@@ -17,3 +17,15 @@ export const createContactMessage = async (req, res) => {
     res.status(500).json({ error: "Database error", details: err.message });
   }
 };
+
+// GET /api/contact-messages (admin only)
+export const getAllContactMessages = async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, name, email, phone, subject, message, created_at FROM contact_messages ORDER BY created_at DESC"
+    );
+    res.json({ messages: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: "Database error", details: err.message });
+  }
+};

@@ -8,8 +8,10 @@ import {
   registerForEvent,
   getUserRegistrations,
   cancelRegistration,
+  getAllRegistrations,
 } from "../controllers/registrationController.js";
 import auth from "../middleware/auth.js";
+import adminOnly from "../middleware/admin.js";
 
 // Multer config for Aadhaar image upload
 const storage = multer.diskStorage({
@@ -40,21 +42,27 @@ router.delete("/:id", auth, async (req, res) => {
     const userId = req.user.id;
     const registrationId = req.params.id;
     // Only allow deleting own registration
-    const regRes = await import("../config/db.js").then(m => m.default.query(
-      "SELECT * FROM registrations WHERE id = $1 AND user_id = $2",
-      [registrationId, userId]
-    ));
+    const regRes = await import("../config/db.js").then((m) =>
+      m.default.query(
+        "SELECT * FROM registrations WHERE id = $1 AND user_id = $2",
+        [registrationId, userId]
+      )
+    );
     if (!regRes.rows.length) {
       return res.status(404).json({ error: "Registration not found." });
     }
-    await import("../config/db.js").then(m => m.default.query(
-      "DELETE FROM registrations WHERE id = $1",
-      [registrationId]
-    ));
+    await import("../config/db.js").then((m) =>
+      m.default.query("DELETE FROM registrations WHERE id = $1", [
+        registrationId,
+      ])
+    );
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete registration." });
   }
 });
+
+// Admin: Get all registrations
+router.get("/all", auth, adminOnly, getAllRegistrations);
 
 export default router;
