@@ -11,6 +11,7 @@ router.get("/:filename", auth, (req, res) => {
   // Optionally: add more checks to ensure user is authorized for this file
   const filePath = path.join(process.cwd(), "uploads", "aadhaar", filename);
   if (fs.existsSync(filePath)) {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     res.sendFile(filePath);
   } else {
     res.status(404).send("File not found");
