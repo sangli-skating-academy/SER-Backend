@@ -24,6 +24,15 @@ const PORT = process.env.PORT || 5000;
 app.use(helmet());
 app.use(morgan("dev"));
 
+// Add this CSP middleware after helmet, before routes
+app.use((req, res, next) => {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; img-src 'self' https://ser-frontend-livid.vercel.app data:; base-uri 'self'; font-src 'self' https: data:; form-action 'self'; frame-ancestors 'self'; object-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self' https: 'unsafe-inline'; upgrade-insecure-requests"
+  );
+  next();
+});
+
 // Middlewares
 const allowedOrigins = [
   "http://localhost:5173",
