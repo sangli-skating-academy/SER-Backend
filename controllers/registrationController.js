@@ -130,7 +130,7 @@ export async function getUserRegistrations(req, res) {
   try {
     const userId = req.user.id; // Use authenticated user's id
     const regs = await pool.query(
-      `SELECT r.*, e.title as event_name, e.is_team_event, t.name as team_name
+      `SELECT r.*, e.title as event_name, e.is_team_event, t.name as team_name, t.members as team_members
        FROM registrations r
        LEFT JOIN events e ON r.event_id = e.id
        LEFT JOIN teams t ON r.team_id = t.id
@@ -138,7 +138,18 @@ export async function getUserRegistrations(req, res) {
        ORDER BY r.created_at DESC`,
       [userId]
     );
-    res.json(regs.rows);
+    // Parse team members JSON for each registration if present
+    const rows = regs.rows.map((row) => {
+      if (row.team_members) {
+        try {
+          row.team_members = JSON.parse(row.team_members);
+        } catch {
+          row.team_members = [];
+        }
+      }
+      return row;
+    });
+    res.json(rows);
   } catch (err) {
     console.error("getUserRegistrations error:", err);
     res
