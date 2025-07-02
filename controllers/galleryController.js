@@ -1,12 +1,13 @@
 import pool from "../config/db.js";
 
+// Fetch latest gallery items according to the new DB schema (gallery table)
 export const getLatestGalleryItems = async (req, res) => {
   try {
+    // The new schema: gallery table has id, title, image_url, event_name, date, uploaded_at
     const result = await pool.query(
-      `SELECT g.*, e.title as event_title
-       FROM gallery g
-       LEFT JOIN events e ON g.event_id = e.id
-       ORDER BY g.uploaded_at DESC`
+      `SELECT id, title, image_url, event_name, date, uploaded_at
+       FROM gallery
+       ORDER BY uploaded_at DESC`
     );
     res.json(result.rows);
   } catch (err) {

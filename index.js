@@ -11,8 +11,14 @@ import eventRoutes from "./routes/eventRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import registrationRoutes from "./routes/registrationRoutes.js";
 import userDetailsRoutes from "./routes/userDetailsRoutes.js";
-import secureFileRoutes from "./routes/secureFileRoutes.js";
 import galleryRoutes from "./routes/galleryRoutes.js";
+
+import adminAllRegistrationRoutes from "./routes/admin/registrations.js";
+import adminGalleryRoutes from "./routes/admin/gallery.js";
+import adminSecureFileRoutes from "./routes/admin/secureFile.js";
+import adminContactRoutes from "./routes/admin/contact.js";
+import adminGetUsers from "./routes/admin/users.js";
+
 import errorHandler from "./middleware/errorHandler.js";
 
 dotenv.config();
@@ -56,17 +62,27 @@ app.use(
   },
   express.static(path.resolve(process.cwd(), "uploads/gallery"))
 );
-// API Routes
+
+// Public API Routes
 app.get("/", (req, res) => {
   res.send("Sport event registration Backend Running! 🛡️");
 });
+
+// API Routes
+// All user routes are protected by auth middleware
 app.use("/api/users", userRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/registrations", registrationRoutes);
 app.use("/api/user-details", userDetailsRoutes);
-app.use("/api/secure-file", secureFileRoutes); // Secure file/image access
 app.use("/api/gallery", galleryRoutes);
+
+// Admin-only API Routes (all protected by auth & adminOnly)
+app.use("/api/admin/users", adminGetUsers); //Admin get all users data
+app.use("/api/admin/gallery", adminGalleryRoutes); // Admin gallery routes
+app.use("/api/admin/secure-file", adminSecureFileRoutes); // Admin secure file routes
+app.use("/api/admin/contact", adminContactRoutes); // Admin contact route
+app.use("/api/admin/registrations", adminAllRegistrationRoutes); // Admin registrations route
 
 // 404 handler for unknown API routes
 app.use((req, res, next) => {

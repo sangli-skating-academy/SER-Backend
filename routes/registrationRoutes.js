@@ -2,16 +2,12 @@
 import express from "express";
 const router = express.Router();
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 import {
   registerForEvent,
   getUserRegistrations,
   cancelRegistration,
-  getAllRegistrations,
 } from "../controllers/registrationController.js";
 import auth from "../middleware/auth.js";
-import adminOnly from "../middleware/admin.js";
 
 // Multer config for Aadhaar image upload
 const storage = multer.diskStorage({
@@ -61,8 +57,5 @@ router.delete("/:id", auth, async (req, res) => {
     res.status(500).json({ error: "Failed to delete registration." });
   }
 });
-
-// Admin: Get all registrations
-router.get("/all", auth, adminOnly, getAllRegistrations);
 
 export default router;

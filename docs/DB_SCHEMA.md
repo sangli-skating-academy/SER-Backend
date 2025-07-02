@@ -173,11 +173,10 @@ CREATE TABLE gallery (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   image_url VARCHAR(255) NOT NULL,
-  event_id INT REFERENCES events(id) ON DELETE SET NULL,
+  event_name VARCHAR(255), -- Name of the event (user-filled)
+  date DATE, -- Date of the gallery item (added)
   uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_gallery_event_id ON gallery(event_id);
 ```
 
 ---

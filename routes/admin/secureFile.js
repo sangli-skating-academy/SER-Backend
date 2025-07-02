@@ -1,14 +1,15 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
-import auth from "../middleware/auth.js";
+import auth from "../../middleware/auth.js";
+import adminOnly from "../../middleware/admin.js";
 
 const router = express.Router();
 
-// GET /api/secure-file/:filename
-router.get("/:filename", auth, (req, res) => {
+// GET /api/admin/secure-file/:filename (admin only)
+router.get("/:filename", auth, adminOnly, (req, res) => {
   const { filename } = req.params;
-  // Optionally: add more checks to ensure user is authorized for this file
+  // Only admin can access any aadhaar file
   const filePath = path.join(process.cwd(), "uploads", "aadhaar", filename);
   if (fs.existsSync(filePath)) {
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
