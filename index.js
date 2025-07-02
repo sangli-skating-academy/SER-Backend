@@ -11,6 +11,7 @@ import eventRoutes from "./routes/eventRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import registrationRoutes from "./routes/registrationRoutes.js";
 import userDetailsRoutes from "./routes/userDetailsRoutes.js";
+import secureFile from "./routes/securefile.js";
 import galleryRoutes from "./routes/galleryRoutes.js";
 
 import adminAllRegistrationRoutes from "./routes/admin/registrations.js";
@@ -75,6 +76,7 @@ app.use("/api/events", eventRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/registrations", registrationRoutes);
 app.use("/api/user-details", userDetailsRoutes);
+app.use("/api/secure-file", secureFile); // Secure file routes (for users)
 app.use("/api/gallery", galleryRoutes);
 
 // Admin-only API Routes (all protected by auth & adminOnly)

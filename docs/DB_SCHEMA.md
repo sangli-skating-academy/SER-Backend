@@ -59,7 +59,8 @@ CREATE TABLE events (
   hashtags TEXT[] DEFAULT '{}', -- Array of hashtags for flexible categorization
   is_featured BOOLEAN,
   created_by INT REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  rules_and_guidelines JSONB -- Stores general rules, equipment requirements, scoring system, etc.
 );
 
 CREATE INDEX idx_events_created_by ON events(created_by);

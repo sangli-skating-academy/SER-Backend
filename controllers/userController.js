@@ -147,6 +147,7 @@ export const updateMe = async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
+    console.error("UpdateMe error:", err);
     res
       .status(500)
       .json({ message: "Failed to update user info.", details: err.message });

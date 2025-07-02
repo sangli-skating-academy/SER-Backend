@@ -1,5 +1,7 @@
 // Controller for event registration (individual/team)
 import pool from "../config/db.js";
+import path from "path";
+import fs from "fs";
 
 export async function registerForEvent(req, res) {
   try {
@@ -11,7 +13,17 @@ export async function registerForEvent(req, res) {
       teamMembers, // JSON stringified array for team
       ...userDetails
     } = req.body;
-    const aadhaarImage = req.file ? req.file.path : null;
+
+    // Aadhaar image renaming logic
+    let aadhaarImage = null;
+    if (req.file) {
+      const ext = path.extname(req.file.originalname);
+      const randomStr = Math.random().toString(36).substring(2, 10);
+      const newFilename = `${userId}-${randomStr}-${Date.now()}${ext}`;
+      const destPath = path.join(path.dirname(req.file.path), newFilename);
+      fs.renameSync(req.file.path, destPath);
+      aadhaarImage = destPath;
+    }
 
     // Check if event is team event
     const event = await pool.query("SELECT * FROM events WHERE id = $1", [
@@ -37,9 +49,30 @@ export async function registerForEvent(req, res) {
     // Team: allow coach to register multiple teams
     let teamId = null;
     if (isTeamEvent && registrationType === "team") {
+      // Support both camelCase and snake_case for team name
+      const team_name = teamName || userDetails.team_name;
+      if (!team_name) {
+        return res.status(400).json({ error: "Team name is required." });
+      }
+      // Ensure teamMembers is a valid JSON string
+      let members = teamMembers || userDetails.team_members;
+      if (!members) {
+        return res.status(400).json({ error: "Team members are required." });
+      }
+      if (typeof members === "string") {
+        try {
+          members = JSON.parse(members);
+        } catch {
+          return res
+            .status(400)
+            .json({ error: "Invalid team members format." });
+        }
+      }
+      // Always store as JSON string
+      const membersJson = JSON.stringify(members);
       const teamRes = await pool.query(
         "INSERT INTO teams (name, captain_id, event_id, members) VALUES ($1, $2, $3, $4) RETURNING id",
-        [teamName, userId, eventId, teamMembers]
+        [team_name, userId, eventId, membersJson]
       );
       teamId = teamRes.rows[0].id;
     }
