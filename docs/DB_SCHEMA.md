@@ -137,8 +137,7 @@ CREATE TABLE user_details (
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE user_details
-ADD CONSTRAINT user_details_user_id_event_id_key UNIQUE (user_id, event_id);
+-- REMOVED: UNIQUE (user_id, event_id) constraint to allow multiple user_details per user/event (needed for coaches)
 
 CREATE INDEX idx_user_details_user_id ON user_details(user_id);
 ```

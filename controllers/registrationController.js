@@ -33,16 +33,24 @@ export async function registerForEvent(req, res) {
       return res.status(404).json({ error: "Event not found" });
     const isTeamEvent = event.rows[0].is_team_event;
 
-    // Individual: prevent duplicate registration
+    // Individual: prevent duplicate registration (except for coaches)
     if (registrationType === "individual") {
-      const existing = await pool.query(
-        "SELECT * FROM registrations WHERE user_id = $1 AND event_id = $2",
-        [userId, eventId]
+      // Allow coaches to register multiple times for the same event
+      const userRoleRes = await pool.query(
+        "SELECT role FROM users WHERE id = $1",
+        [userId]
       );
-      if (existing.rows.length) {
-        return res
-          .status(400)
-          .json({ error: "Already registered for this event." });
+      const userRole = userRoleRes.rows[0]?.role;
+      if (userRole !== "coach") {
+        const existing = await pool.query(
+          "SELECT * FROM registrations WHERE user_id = $1 AND event_id = $2",
+          [userId, eventId]
+        );
+        if (existing.rows.length) {
+          return res
+            .status(400)
+            .json({ error: "Already registered for this event." });
+        }
       }
     }
 
@@ -84,13 +92,11 @@ export async function registerForEvent(req, res) {
     );
     const registrationId = regRes.rows[0].id;
 
-    // Insert user details (per event, per user)
-    // Ensure user_details table has UNIQUE (user_id, event_id) in DB
+    // Insert user details (per registration, not per user/event)
+    // Always insert a new user_details row for every registration
     const detailsRes = await pool.query(
       `INSERT INTO user_details (user_id, event_id, coach_name, club_name, gender, age_group, first_name, middle_name, last_name, district, date_of_birth, category, aadhaar_number, aadhaar_image)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-       ON CONFLICT ON CONSTRAINT user_details_user_id_event_id_key DO UPDATE SET
-         coach_name=EXCLUDED.coach_name, club_name=EXCLUDED.club_name, gender=EXCLUDED.gender, age_group=EXCLUDED.age_group, first_name=EXCLUDED.first_name, middle_name=EXCLUDED.middle_name, last_name=EXCLUDED.last_name, district=EXCLUDED.district, date_of_birth=EXCLUDED.date_of_birth, category=EXCLUDED.category, aadhaar_number=EXCLUDED.aadhaar_number, aadhaar_image=EXCLUDED.aadhaar_image
        RETURNING id`,
       [
         userId,
@@ -129,6 +135,11 @@ export async function registerForEvent(req, res) {
 export async function getUserRegistrations(req, res) {
   try {
     const userId = req.user.id; // Use authenticated user's id
+    const userRoleRes = await pool.query(
+      "SELECT role FROM users WHERE id = $1",
+      [userId]
+    );
+    const userRole = userRoleRes.rows[0]?.role;
     const regs = await pool.query(
       `SELECT r.*, e.title as event_name, e.is_team_event, t.name as team_name, t.members as team_members
        FROM registrations r
@@ -138,8 +149,19 @@ export async function getUserRegistrations(req, res) {
        ORDER BY r.created_at DESC`,
       [userId]
     );
+    let rows = regs.rows;
+    // For coaches, do not filter out duplicate registrations
+    if (userRole !== "coach") {
+      // For non-coaches, only show the latest registration per event
+      const seen = new Set();
+      rows = rows.filter((row) => {
+        if (seen.has(row.event_id)) return false;
+        seen.add(row.event_id);
+        return true;
+      });
+    }
     // Parse team members JSON for each registration if present
-    const rows = regs.rows.map((row) => {
+    rows = rows.map((row) => {
       if (row.team_members) {
         try {
           row.team_members = JSON.parse(row.team_members);

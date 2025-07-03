@@ -20,6 +20,7 @@ import adminGalleryRoutes from "./routes/admin/gallery.js";
 import adminSecureFileRoutes from "./routes/admin/secureFile.js";
 import adminContactRoutes from "./routes/admin/contact.js";
 import adminGetUsers from "./routes/admin/users.js";
+import adminEventRoutes from "./routes/admin/events.js";
 
 import errorHandler from "./middleware/errorHandler.js";
 
@@ -57,6 +58,14 @@ app.use(express.json());
 app.use(cookieParser());
 // Public gallery images (non-sensitive) with CORP header
 app.use(
+  "/uploads/events",
+  (req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(path.resolve(process.cwd(), "uploads/events"))
+);
+app.use(
   "/uploads/gallery",
   (req, res, next) => {
     res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
@@ -87,6 +96,7 @@ app.use("/api/admin/gallery", adminGalleryRoutes); // Admin gallery routes
 app.use("/api/admin/secure-file", adminSecureFileRoutes); // Admin secure file routes
 app.use("/api/admin/contact", adminContactRoutes); // Admin contact route
 app.use("/api/admin/registrations", adminAllRegistrationRoutes); // Admin registrations route
+app.use("/api/admin/events", adminEventRoutes); // Admin event routes
 
 // 404 handler for unknown API routes
 app.use((req, res, next) => {
