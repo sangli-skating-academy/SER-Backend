@@ -44,13 +44,8 @@ export const getUserDetailsByRegistration = async (req, res) => {
       };
     }
     // Remove team fields from user_details object
-    const {
-      team_id,
-      team_name,
-      team_members,
-      is_team_event,
-      ...userDetails
-    } = row;
+    const { team_id, team_name, team_members, is_team_event, ...userDetails } =
+      row;
     res.json({ ...userDetails, team });
   } catch (err) {
     console.error("Error fetching user details:", err);
@@ -61,7 +56,9 @@ export const getUserDetailsByRegistration = async (req, res) => {
 // Update user_details for a registration (by registrationId)
 export const updateUserDetailsByRegistration = async (req, res) => {
   const { registrationId } = req.params;
-  const fields = req.body;
+  // Remove any fields not in user_details table (e.g., team)
+  const fields = { ...req.body };
+  delete fields.team;
   try {
     // Get user_details_id for this registration
     const regResult = await pool.query(
