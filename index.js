@@ -47,6 +47,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "https://ser-frontend-livid.vercel.app",
 ];
+
 app.use(
   cors({
     origin: allowedOrigins,
@@ -54,8 +55,10 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(express.json());
 app.use(cookieParser());
+
 // Public gallery images (non-sensitive) with CORP header
 app.use(
   "/uploads/events",

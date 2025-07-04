@@ -52,6 +52,7 @@ router.patch(
         "description",
         "location",
         "start_date",
+        "start_time", // <-- added
         "gender",
         "age_group",
         "is_team_event",
@@ -124,6 +125,85 @@ router.patch(
     } catch (err) {
       console.error("Error updating event:", err);
       res.status(500).json({ error: "Failed to update event." });
+    }
+  }
+);
+
+// POST /api/admin/events
+router.post(
+  "/",
+  auth,
+  adminAuth,
+  upload.single("file"),
+  async (req, res) => {
+    let fields = req.body;
+    let image_url = null;
+    if (req.file) {
+      image_url = `${getBaseUrl(req)}/uploads/events/${req.file.filename}`;
+    }
+    try {
+      const allowedFields = [
+        "title",
+        "description",
+        "location",
+        "start_date",
+        "start_time", // <-- added
+        "gender",
+        "age_group",
+        "is_team_event",
+        "price_per_person",
+        "price_per_team",
+        "max_team_size",
+        "hashtags",
+        "is_featured",
+        "rules_and_guidelines",
+      ];
+      let columns = [];
+      let values = [];
+      let params = [];
+      let idx = 1;
+      for (const key of allowedFields) {
+        if (fields[key] !== undefined) {
+          columns.push(key);
+          values.push(`$${idx}`);
+          if (key === "hashtags" && typeof fields[key] === "string") {
+            try {
+              params.push(JSON.parse(fields[key]));
+            } catch {
+              params.push(fields[key]);
+            }
+          } else if (
+            key === "rules_and_guidelines" &&
+            typeof fields[key] === "string"
+          ) {
+            try {
+              params.push(JSON.parse(fields[key]));
+            } catch {
+              params.push(fields[key]);
+            }
+          } else {
+            params.push(fields[key]);
+          }
+          idx++;
+        }
+      }
+      if (image_url) {
+        columns.push("image_url");
+        values.push(`$${idx}`);
+        params.push(image_url);
+        idx++;
+      }
+      if (columns.length === 0) {
+        return res.status(400).json({ error: "No valid fields to insert." });
+      }
+      const result = await pool.query(
+        `INSERT INTO events (${columns.join(", ")}) VALUES (${values.join(", ")}) RETURNING *`,
+        params
+      );
+      res.json({ success: true, event: result.rows[0] });
+    } catch (err) {
+      console.error("Error creating event:", err);
+      res.status(500).json({ error: "Failed to create event." });
     }
   }
 );
