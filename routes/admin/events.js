@@ -208,4 +208,41 @@ router.post(
   }
 );
 
+// DELETE /api/admin/events/:eventId
+router.delete(
+  "/:eventId",
+  auth,
+  adminAuth,
+  async (req, res) => {
+    const { eventId } = req.params;
+    try {
+      // Get image url to delete file if exists
+      const result = await pool.query(
+        "SELECT image_url FROM events WHERE id = $1",
+        [eventId]
+      );
+      const image_url = result.rows[0]?.image_url;
+      // Delete event
+      const del = await pool.query(
+        "DELETE FROM events WHERE id = $1 RETURNING *",
+        [eventId]
+      );
+      if (del.rowCount === 0) {
+        return res.status(404).json({ error: "Event not found." });
+      }
+      // Remove image file if exists
+      if (image_url && image_url.includes("/uploads/events/")) {
+        const oldPath = image_url.replace(getBaseUrl(req), "");
+        import("fs").then((fs) => {
+          fs.unlink(path.join(process.cwd(), oldPath), () => {});
+        });
+      }
+      res.json({ success: true, message: "Event deleted successfully." });
+    } catch (err) {
+      console.error("Error deleting event:", err);
+      res.status(500).json({ error: "Failed to delete event." });
+    }
+  }
+);
+
 export default router;
