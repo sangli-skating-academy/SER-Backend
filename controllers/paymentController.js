@@ -109,3 +109,72 @@ export const verifyPayment = async (req, res) => {
     return res.status(400).json({ success: false, error: "Invalid signature" });
   }
 };
+
+export const getAllPayments = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.*, r.event_id, r.registration_type, r.status AS registration_status, e.title AS event_title
+       FROM payments p
+       JOIN registrations r ON p.registration_id = r.id
+       JOIN events e ON r.event_id = e.id
+       ORDER BY p.created_at DESC`
+    );
+    res.json({ payments: result.rows });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ error: "Failed to fetch payments", details: err.message });
+  }
+};
+export const getPaymentById = async (req, res) => {
+  const { id } = req.params;
+  if (!id || isNaN(Number(id))) {
+    return res.status(400).json({ error: "Invalid payment ID" });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT p.*, r.event_id, r.registration_type, r.status AS registration_status, e.title AS event_title
+       FROM payments p
+       JOIN registrations r ON p.registration_id = r.id
+       JOIN events e ON r.event_id = e.id
+       WHERE p.id = $1`,
+      [id]
+    );
+    if (!result.rows.length) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+    res.json({ payment: result.rows[0] });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ error: "Failed to fetch payment", details: err.message });
+  }
+};
+export const getPaymentByRegistrationId = async (req, res) => {
+  const { registrationId } = req.params;
+  if (!registrationId || isNaN(Number(registrationId))) {
+    return res.status(400).json({ error: "Invalid registration ID" });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT p.*, r.event_id, r.registration_type, r.status AS registration_status, e.title AS event_title
+       FROM payments p
+       JOIN registrations r ON p.registration_id = r.id
+       JOIN events e ON r.event_id = e.id
+       WHERE p.registration_id = $1
+       ORDER BY p.created_at DESC
+       LIMIT 1`,
+      [registrationId]
+    );
+    if (!result.rows.length) {
+      return res
+        .status(404)
+        .json({ error: "Payment not found for this registration" });
+    }
+    res.json({ payment: result.rows[0] });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ error: "Failed to fetch payment", details: err.message });
+  }
+};
