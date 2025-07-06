@@ -57,12 +57,12 @@ export const getUserDetailsByRegistration = async (req, res) => {
 export const updateUserDetailsByRegistration = async (req, res) => {
   const { registrationId } = req.params;
   // Remove any fields not in user_details table (e.g., team)
-  const fields = { ...req.body };
+  let fields = { ...req.body };
   delete fields.team;
   try {
     // Get user_details_id for this registration
     const regResult = await pool.query(
-      "SELECT user_details_id FROM registrations WHERE id = $1",
+      "SELECT user_details_id, aadhaar_image FROM registrations r JOIN user_details ud ON r.user_details_id = ud.id WHERE r.id = $1",
       [registrationId]
     );
     if (regResult.rows.length === 0 || !regResult.rows[0].user_details_id) {
@@ -71,6 +71,49 @@ export const updateUserDetailsByRegistration = async (req, res) => {
         .json({ message: "User details not found for this registration." });
     }
     const userDetailsId = regResult.rows[0].user_details_id;
+    const oldAadhaarImage = regResult.rows[0].aadhaar_image;
+
+    // --- HANDLE AADHAAR IMAGE (file upload) ---
+    // If using multer, req.file will be present for multipart/form-data
+    if (req.file) {
+      const fs = await import("fs");
+      const path = await import("path");
+      // Remove old image if exists
+      if (oldAadhaarImage) {
+        const oldPath = path.resolve(
+          "uploads/aadhaar",
+          path.basename(oldAadhaarImage)
+        );
+        fs.unlink(oldPath, (err) => {}); // ignore error
+      }
+      const ext = path.extname(req.file.originalname);
+      const randomStr = Math.random().toString(36).substring(2, 10);
+      const newFilename = `${userDetailsId}-${randomStr}-${Date.now()}${ext}`;
+      const destPath = path.join("uploads/aadhaar", newFilename);
+      fs.renameSync(req.file.path, destPath);
+      fields.aadhaar_image = destPath;
+    } else if (
+      req.body &&
+      (req.body.aadhaarImage === "null" || req.body.aadhaarImage === null)
+    ) {
+      // Remove old image if user wants to clear (handle camelCase from frontend)
+      if (oldAadhaarImage) {
+        const fs = await import("fs");
+        const path = await import("path");
+        const oldPath = path.resolve(
+          "uploads/aadhaar",
+          path.basename(oldAadhaarImage)
+        );
+        fs.unlink(oldPath, (err) => {}); // ignore error
+      }
+      fields.aadhaar_image = null;
+    }
+
+    // Prevent empty update
+    if (Object.keys(fields).length === 0 && !req.file) {
+      return res.status(400).json({ message: "No fields to update." });
+    }
+
     // Build dynamic update query
     const setClause = Object.keys(fields)
       .map((key, idx) => `${key} = $${idx + 2}`)
