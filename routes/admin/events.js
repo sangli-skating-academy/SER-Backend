@@ -17,7 +17,10 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${randomStr}${ext}`);
   },
 });
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
 
 function getBaseUrl(req) {
   return process.env.BASE_URL;
@@ -130,119 +133,122 @@ router.patch(
 );
 
 // POST /api/admin/events
-router.post(
-  "/",
-  auth,
-  adminAuth,
-  upload.single("file"),
-  async (req, res) => {
-    let fields = req.body;
-    let image_url = null;
-    if (req.file) {
-      image_url = `${getBaseUrl(req)}/uploads/events/${req.file.filename}`;
-    }
-    try {
-      const allowedFields = [
-        "title",
-        "description",
-        "location",
-        "start_date",
-        "start_time", // <-- added
-        "gender",
-        "age_group",
-        "is_team_event",
-        "price_per_person",
-        "price_per_team",
-        "max_team_size",
-        "hashtags",
-        "is_featured",
-        "rules_and_guidelines",
-      ];
-      let columns = [];
-      let values = [];
-      let params = [];
-      let idx = 1;
-      for (const key of allowedFields) {
-        if (fields[key] !== undefined) {
-          columns.push(key);
-          values.push(`$${idx}`);
-          if (key === "hashtags" && typeof fields[key] === "string") {
-            try {
-              params.push(JSON.parse(fields[key]));
-            } catch {
-              params.push(fields[key]);
-            }
-          } else if (
-            key === "rules_and_guidelines" &&
-            typeof fields[key] === "string"
-          ) {
-            try {
-              params.push(JSON.parse(fields[key]));
-            } catch {
-              params.push(fields[key]);
-            }
-          } else {
-            params.push(fields[key]);
-          }
-          idx++;
+router.post("/", auth, adminAuth, upload.single("file"), async (req, res) => {
+  let fields = req.body;
+  let image_url = null;
+  if (req.file) {
+    image_url = `${getBaseUrl(req)}/uploads/events/${req.file.filename}`;
+  }
+  try {
+    const allowedFields = [
+      "title",
+      "description",
+      "location",
+      "start_date",
+      "start_time", // <-- added
+      "gender",
+      "age_group",
+      "is_team_event",
+      "price_per_person",
+      "price_per_team",
+      "max_team_size",
+      "hashtags",
+      "is_featured",
+      "rules_and_guidelines",
+    ];
+    let columns = [];
+    let values = [];
+    let params = [];
+    let idx = 1;
+    const numericFields = [
+      "price_per_person",
+      "price_per_team",
+      "max_team_size",
+    ];
+    for (const key of allowedFields) {
+      if (fields[key] !== undefined) {
+        let value = fields[key];
+        if (
+          numericFields.includes(key) &&
+          (value === "" || value === undefined)
+        ) {
+          value = null;
         }
-      }
-      if (image_url) {
-        columns.push("image_url");
+        columns.push(key);
         values.push(`$${idx}`);
-        params.push(image_url);
+        if (key === "hashtags" && typeof value === "string") {
+          try {
+            params.push(JSON.parse(value));
+          } catch {
+            params.push(value);
+          }
+        } else if (
+          key === "rules_and_guidelines" &&
+          typeof value === "string"
+        ) {
+          try {
+            params.push(JSON.parse(value));
+          } catch {
+            params.push(value);
+          }
+        } else {
+          params.push(value);
+        }
         idx++;
       }
-      if (columns.length === 0) {
-        return res.status(400).json({ error: "No valid fields to insert." });
-      }
-      const result = await pool.query(
-        `INSERT INTO events (${columns.join(", ")}) VALUES (${values.join(", ")}) RETURNING *`,
-        params
-      );
-      res.json({ success: true, event: result.rows[0] });
-    } catch (err) {
-      console.error("Error creating event:", err);
-      res.status(500).json({ error: "Failed to create event." });
     }
+    if (image_url) {
+      columns.push("image_url");
+      values.push(`$${idx}`);
+      params.push(image_url);
+      idx++;
+    }
+    if (columns.length === 0) {
+      return res.status(400).json({ error: "No valid fields to insert." });
+    }
+    const result = await pool.query(
+      `INSERT INTO events (${columns.join(", ")}) VALUES (${values.join(
+        ", "
+      )}) RETURNING *`,
+      params
+    );
+    res.json({ success: true, event: result.rows[0] });
+  } catch (err) {
+    console.error("Error creating event:", err);
+    res.status(500).json({ error: "Failed to create event." });
   }
-);
+});
 
 // DELETE /api/admin/events/:eventId
-router.delete(
-  "/:eventId",
-  auth,
-  adminAuth,
-  async (req, res) => {
-    const { eventId } = req.params;
-    try {
-      // Get image url to delete file if exists
-      const result = await pool.query(
-        "SELECT image_url FROM events WHERE id = $1",
-        [eventId]
-      );
-      const image_url = result.rows[0]?.image_url;
-      // Delete event
-      const del = await pool.query(
-        "DELETE FROM events WHERE id = $1 RETURNING *",
-        [eventId]
-      );
-      if (del.rowCount === 0) {
-        return res.status(404).json({ error: "Event not found." });
-      }
-      // Remove image file if exists
-      if (image_url && image_url.includes("/uploads/events/")) {
-        const oldPath = image_url.replace(getBaseUrl(req), "");
-        import("fs").then((fs) => {
-          fs.unlink(path.join(process.cwd(), oldPath), () => {});
-        });
-      }
-      res.json({ success: true, message: "Event deleted successfully." });
-    } catch (err) {
-      console.error("Error deleting event:", err);
-      res.status(500).json({ error: "Failed to delete event." });
+router.delete("/:eventId", auth, adminAuth, async (req, res) => {
+  const { eventId } = req.params;
+  try {
+    // Get image url to delete file if exists
+    const result = await pool.query(
+      "SELECT image_url FROM events WHERE id = $1",
+      [eventId]
+    );
+    const image_url = result.rows[0]?.image_url;
+    // Delete event
+    const del = await pool.query(
+      "DELETE FROM events WHERE id = $1 RETURNING *",
+      [eventId]
+    );
+    if (del.rowCount === 0) {
+      return res.status(404).json({ error: "Event not found." });
     }
+    // Remove image file if exists
+    if (image_url && image_url.includes("/uploads/events/")) {
+      const oldPath = image_url.replace(getBaseUrl(req), "");
+      import("fs").then((fs) => {
+        fs.unlink(path.join(process.cwd(), oldPath), () => {});
+      });
+    }
+    res.json({ success: true, message: "Event deleted successfully." });
+  } catch (err) {
+    console.error("Error deleting event:", err);
+    res.status(500).json({ error: "Failed to delete event." });
   }
-);
+});
 
 export default router;
