@@ -9,7 +9,7 @@ const router = express.Router();
 router.get("/", auth, adminOnly, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, username, email, full_name, phone, date_of_birth, gender, role, created_at FROM users ORDER BY created_at DESC`
+      `SELECT id, username, email, phone, role, created_at FROM users ORDER BY created_at DESC`
     );
     res.json({ users: result.rows });
   } catch (err) {

@@ -5,21 +5,13 @@ import generateToken from "../utils/generateToken.js";
 // Register a new user
 export const registerUser = async (req, res, next) => {
   try {
-    const {
-      username,
-      email,
-      password,
-      full_name,
-      phone,
-      date_of_birth,
-      gender,
-      role,
-    } = req.body;
-    if (!username || !email || !password) {
+    const { username, email, phone, password, role } = req.body;
+    if (!username || !email || !password || !phone || !role) {
       return res
         .status(400)
         .json({ message: "All required fields must be filled." });
     }
+    // Check if user already exists
     const userExists = await pool.query(
       "SELECT id FROM users WHERE email = $1",
       [email]
@@ -29,20 +21,13 @@ export const registerUser = async (req, res, next) => {
         .status(409)
         .json({ message: "User already exists with this email." });
     }
-    const hashedPassword = await bcrypt.hash(password, 12);
-    const insertQuery = `INSERT INTO users (username, email, password, full_name, phone, date_of_birth, gender, role) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, username, email, full_name, phone, date_of_birth, gender, role`;
-    const values = [
-      username,
-      email,
-      hashedPassword,
-      full_name,
-      phone,
-      date_of_birth,
-      gender,
-      role,
-    ];
-    const { rows } = await pool.query(insertQuery, values);
-    const user = rows[0];
+    // Hash password and insert user
+    const hashed = await bcrypt.hash(password, 12);
+    const result = await pool.query(
+      `INSERT INTO users (username, email, phone, password, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, email, phone, role`,
+      [username, email, phone, hashed, role]
+    );
+    const user = result.rows[0];
     const token = generateToken(user.id, user.email, user.role);
 
     // Set JWT as HTTP-only cookie
@@ -101,7 +86,7 @@ export const getMe = async (req, res) => {
   try {
     const { id } = req.user;
     const result = await pool.query(
-      `SELECT id, username, email, full_name, phone, date_of_birth, gender, role FROM users WHERE id = $1`,
+      `SELECT id, username, email , phone, role FROM users WHERE id = $1`,
       [id]
     );
     if (!result.rows.length) {
@@ -120,10 +105,9 @@ export const getMe = async (req, res) => {
 export const updateMe = async (req, res) => {
   try {
     const { id } = req.user;
-    const { full_name, username, email, phone, date_of_birth, gender } =
-      req.body;
+    const { username, email, phone } = req.body;
     // Only update provided fields
-    const fields = { full_name, username, email, phone, date_of_birth, gender };
+    const fields = { username, email, phone };
     const setClauses = [];
     const values = [];
     let idx = 1;
@@ -140,7 +124,7 @@ export const updateMe = async (req, res) => {
     values.push(id);
     const updateQuery = `UPDATE users SET ${setClauses.join(
       ", "
-    )} WHERE id = $${idx} RETURNING id, username, email, full_name, phone, date_of_birth, gender, role`;
+    )} WHERE id = $${idx} RETURNING id, username, email, phone, role`;
     const result = await pool.query(updateQuery, values);
     if (!result.rows.length) {
       return res.status(404).json({ message: "User not found." });

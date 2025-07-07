@@ -18,10 +18,7 @@ CREATE TABLE users (
   username VARCHAR(100) UNIQUE NOT NULL,
   email VARCHAR(100) UNIQUE NOT NULL,
   phone VARCHAR(20),
-  password VARCHAR(255) NOT NULL, -- bcrypt hash
-  full_name VARCHAR(255),
-  date_of_birth DATE,
-  gender VARCHAR(50),
+  password VARCHAR(255) NOT NULL,
   role VARCHAR(50) DEFAULT 'individual', -- 'individual', 'coach', 'admin'
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -130,6 +127,7 @@ CREATE TABLE user_details (
   middle_name VARCHAR(100),
   last_name VARCHAR(100),
   district VARCHAR(100),
+  state VARCHAR(100),
   date_of_birth DATE,
   category VARCHAR(20) CHECK (category IN ('quad', 'inline', 'beginner')),
   aadhaar_number VARCHAR(20),
