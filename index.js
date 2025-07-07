@@ -107,7 +107,6 @@ app.use("/api/admin/events", adminEventRoutes); // Admin event routes
 app.use((req, res, next) => {
   res.status(404).json({ message: "API route not found" });
 });
-
 app.use(errorHandler);
 
 app.listen(PORT, () => {
