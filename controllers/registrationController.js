@@ -96,7 +96,7 @@ export async function registerForEvent(req, res) {
     // Always insert a new user_details row for every registration
     const detailsRes = await pool.query(
       `INSERT INTO user_details (user_id, event_id, coach_name, club_name, gender, age_group, first_name, middle_name, last_name, district,  state, date_of_birth, category, aadhaar_number, aadhaar_image)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, $15)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        RETURNING id`,
       [
         userId,
