@@ -39,7 +39,7 @@ The event_categories table has been dropped. Event categories are now handled vi
 
 Stores all event information.
 
-```sql
+````sql
 CREATE TABLE events (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE events (
   start_date DATE NOT NULL,
   start_time TIME NOT NULL,
   gender VARCHAR(50) NOT NULL,
-  age_group VARCHAR(100) NOT NULL,
+  age_group JSONB NOT NULL DEFAULT '{}',
   is_team_event BOOLEAN DEFAULT FALSE,
   price_per_person DECIMAL(10, 2),
   price_per_team DECIMAL(10, 2),
@@ -59,11 +59,11 @@ CREATE TABLE events (
   created_by INT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   rules_and_guidelines JSONB -- Stores general rules, equipment requirements, scoring system, etc.
+  live BOOLEAN DEFAULT FALSE
 );
 
 CREATE INDEX idx_events_created_by ON events(created_by);
 CREATE INDEX idx_events_hashtags ON events USING GIN (hashtags);
-```
 
 ---
 
@@ -83,7 +83,7 @@ CREATE TABLE teams (
 
 CREATE INDEX idx_teams_event_id ON teams(event_id);
 CREATE INDEX idx_teams_captain_id ON teams(captain_id);
-```
+````
 
 ---
 

@@ -65,6 +65,7 @@ router.patch(
         "hashtags",
         "is_featured",
         "rules_and_guidelines",
+        "live", // <-- add live field
       ];
       let setClauses = [];
       let params = [];
@@ -155,6 +156,7 @@ router.post("/", auth, adminAuth, upload.single("file"), async (req, res) => {
       "hashtags",
       "is_featured",
       "rules_and_guidelines",
+      "live", // <-- add live field
     ];
     let columns = [];
     let values = [];
