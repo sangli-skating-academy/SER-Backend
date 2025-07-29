@@ -4,22 +4,21 @@ import auth from "../../middleware/auth.js";
 import adminAuth from "../../middleware/admin.js";
 import multer from "multer";
 import path from "path";
+import { v2 as cloudinary } from "cloudinary";
+import fs from "fs";
+
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 const router = express.Router();
 
-// Multer config for event image upload
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/events/");
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    const randomStr = Math.random().toString(36).substring(2, 10);
-    cb(null, `${Date.now()}-${randomStr}${ext}`);
-  },
-});
+// Multer config for temp storage before Cloudinary upload
 const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  dest: "uploads/events/",
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
 function getBaseUrl(req) {
@@ -37,7 +36,14 @@ router.patch(
     let updateFields = req.body;
     let image_url = null;
     if (req.file) {
-      image_url = `${getBaseUrl(req)}/uploads/events/${req.file.filename}`;
+      // Upload to Cloudinary
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "events",
+        resource_type: "image",
+      });
+      image_url = result.secure_url;
+      // Remove temp file
+      fs.unlinkSync(req.file.path);
     }
     try {
       // Fetch old image url if new image uploaded
@@ -110,17 +116,23 @@ router.patch(
         )} WHERE id = $${idx} RETURNING *`,
         params
       );
-      // Remove old image file if replaced
-      if (
-        image_url &&
-        oldImage &&
-        oldImage !== image_url &&
-        oldImage.includes("/uploads/events/")
-      ) {
-        const oldPath = oldImage.replace(getBaseUrl(req), "");
-        import("fs").then((fs) => {
-          fs.unlink(path.join(process.cwd(), oldPath), () => {});
-        });
+      // Remove old image file or Cloudinary image if replaced
+      if (image_url && oldImage && oldImage !== image_url) {
+        if (oldImage.startsWith("http")) {
+          // Delete from Cloudinary using public_id
+          const matches = oldImage.match(/\/events\/([^\.]+)\./);
+          if (matches && matches[1]) {
+            const publicId = `events/${matches[1]}`;
+            try {
+              await cloudinary.uploader.destroy(publicId, {
+                resource_type: "image",
+              });
+            } catch {}
+          }
+        } else if (oldImage.includes("/uploads/events/")) {
+          const oldPath = oldImage.replace(getBaseUrl(req), "");
+          fs.unlinkSync(path.join(process.cwd(), oldPath));
+        }
       }
       if (result.rowCount === 0) {
         return res.status(404).json({ error: "Event not found." });
@@ -138,7 +150,14 @@ router.post("/", auth, adminAuth, upload.single("file"), async (req, res) => {
   let fields = req.body;
   let image_url = null;
   if (req.file) {
-    image_url = `${getBaseUrl(req)}/uploads/events/${req.file.filename}`;
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "events",
+      resource_type: "image",
+    });
+    image_url = result.secure_url;
+    // Remove temp file
+    fs.unlinkSync(req.file.path);
   }
   try {
     const allowedFields = [
@@ -225,7 +244,7 @@ router.post("/", auth, adminAuth, upload.single("file"), async (req, res) => {
 router.delete("/:eventId", auth, adminAuth, async (req, res) => {
   const { eventId } = req.params;
   try {
-    // Get image url to delete file if exists
+    // Get image url to delete file or Cloudinary image
     const result = await pool.query(
       "SELECT image_url FROM events WHERE id = $1",
       [eventId]
@@ -239,12 +258,22 @@ router.delete("/:eventId", auth, adminAuth, async (req, res) => {
     if (del.rowCount === 0) {
       return res.status(404).json({ error: "Event not found." });
     }
-    // Remove image file if exists
-    if (image_url && image_url.includes("/uploads/events/")) {
-      const oldPath = image_url.replace(getBaseUrl(req), "");
-      import("fs").then((fs) => {
-        fs.unlink(path.join(process.cwd(), oldPath), () => {});
-      });
+    // Remove image from Cloudinary or local disk
+    if (image_url) {
+      if (image_url.startsWith("http")) {
+        const matches = image_url.match(/\/events\/([^\.]+)\./);
+        if (matches && matches[1]) {
+          const publicId = `events/${matches[1]}`;
+          try {
+            await cloudinary.uploader.destroy(publicId, {
+              resource_type: "image",
+            });
+          } catch {}
+        }
+      } else if (image_url.includes("/uploads/events/")) {
+        const oldPath = image_url.replace(getBaseUrl(req), "");
+        fs.unlinkSync(path.join(process.cwd(), oldPath));
+      }
     }
     res.json({ success: true, message: "Event deleted successfully." });
   } catch (err) {

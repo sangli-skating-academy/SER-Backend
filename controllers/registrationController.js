@@ -1,5 +1,13 @@
 // Controller for event registration (individual/team)
 import pool from "../config/db.js";
+import { v2 as cloudinary } from "cloudinary";
+
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 import path from "path";
 import fs from "fs";
 
@@ -14,15 +22,15 @@ export async function registerForEvent(req, res) {
       ...userDetails
     } = req.body;
 
-    // Aadhaar image renaming logic
+    // Aadhaar image upload to Cloudinary
     let aadhaarImage = null;
     if (req.file) {
-      const ext = path.extname(req.file.originalname);
-      const randomStr = Math.random().toString(36).substring(2, 10);
-      const newFilename = `${userId}-${randomStr}-${Date.now()}${ext}`;
-      const destPath = path.join(path.dirname(req.file.path), newFilename);
-      fs.renameSync(req.file.path, destPath);
-      aadhaarImage = destPath;
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "aadhaar",
+        resource_type: "image",
+      });
+      aadhaarImage = result.secure_url;
+      fs.unlinkSync(req.file.path);
     }
 
     // Check if event is team event
@@ -199,6 +207,26 @@ export async function cancelRegistration(req, res) {
       return res
         .status(400)
         .json({ error: "Cannot cancel this registration." });
+    }
+    // Optionally: delete Aadhaar image from Cloudinary if registration is cancelled
+    const userDetailsRes = await pool.query(
+      "SELECT aadhaar_image FROM user_details WHERE id = $1",
+      [regRes.rows[0].user_details_id]
+    );
+    const aadhaarImage = userDetailsRes.rows[0]?.aadhaar_image;
+    if (aadhaarImage && aadhaarImage.startsWith("http")) {
+      const matches = aadhaarImage.match(/\/aadhaar\/([^\.]+)\./);
+      if (matches && matches[1]) {
+        const publicId = `aadhaar/${matches[1]}`;
+        try {
+          await cloudinary.uploader.destroy(publicId, {
+            resource_type: "image",
+          });
+        } catch {}
+      }
+    } else if (aadhaarImage) {
+      const oldPath = `uploads/aadhaar/${path.basename(aadhaarImage)}`;
+      fs.unlink(oldPath, (err) => {});
     }
     await pool.query(
       "UPDATE registrations SET status = 'cancelled' WHERE id = $1",

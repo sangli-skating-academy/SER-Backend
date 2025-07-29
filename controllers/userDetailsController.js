@@ -1,5 +1,14 @@
 import pool from "../config/db.js";
+import { v2 as cloudinary } from "cloudinary";
+import fs from "fs";
+import path from "path";
 
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 // Get user_details for a registration (by registrationId)
 export const getUserDetailsByRegistration = async (req, res) => {
   const { registrationId } = req.params;
@@ -76,34 +85,45 @@ export const updateUserDetailsByRegistration = async (req, res) => {
     // --- HANDLE AADHAAR IMAGE (file upload) ---
     // If using multer, req.file will be present for multipart/form-data
     if (req.file) {
-      const fs = await import("fs");
-      const path = await import("path");
-      // Remove old image if exists
-      if (oldAadhaarImage) {
-        const oldPath = path.resolve(
-          "uploads/aadhaar",
-          path.basename(oldAadhaarImage)
-        );
+      // Remove old image if exists (local or cloudinary)
+      if (oldAadhaarImage && oldAadhaarImage.startsWith("http")) {
+        // Delete from Cloudinary using public_id
+        const matches = oldAadhaarImage.match(/\/aadhaar\/([^\.]+)\./);
+        if (matches && matches[1]) {
+          const publicId = `aadhaar/${matches[1]}`;
+          try {
+            await cloudinary.uploader.destroy(publicId, {
+              resource_type: "image",
+            });
+          } catch {}
+        }
+      } else if (oldAadhaarImage) {
+        const oldPath = `uploads/aadhaar/${path.basename(oldAadhaarImage)}`;
         fs.unlink(oldPath, (err) => {}); // ignore error
       }
-      const ext = path.extname(req.file.originalname);
-      const randomStr = Math.random().toString(36).substring(2, 10);
-      const newFilename = `${userDetailsId}-${randomStr}-${Date.now()}${ext}`;
-      const destPath = path.join("uploads/aadhaar", newFilename);
-      fs.renameSync(req.file.path, destPath);
-      fields.aadhaar_image = destPath;
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "aadhaar",
+        resource_type: "image",
+      });
+      fields.aadhaar_image = result.secure_url;
+      fs.unlinkSync(req.file.path);
     } else if (
       req.body &&
       (req.body.aadhaarImage === "null" || req.body.aadhaarImage === null)
     ) {
       // Remove old image if user wants to clear (handle camelCase from frontend)
-      if (oldAadhaarImage) {
-        const fs = await import("fs");
-        const path = await import("path");
-        const oldPath = path.resolve(
-          "uploads/aadhaar",
-          path.basename(oldAadhaarImage)
-        );
+      if (oldAadhaarImage && oldAadhaarImage.startsWith("http")) {
+        const matches = oldAadhaarImage.match(/\/aadhaar\/([^\.]+)\./);
+        if (matches && matches[1]) {
+          const publicId = `aadhaar/${matches[1]}`;
+          try {
+            await cloudinary.uploader.destroy(publicId, {
+              resource_type: "image",
+            });
+          } catch {}
+        }
+      } else if (oldAadhaarImage) {
+        const oldPath = `uploads/aadhaar/${path.basename(oldAadhaarImage)}`;
         fs.unlink(oldPath, (err) => {}); // ignore error
       }
       fields.aadhaar_image = null;

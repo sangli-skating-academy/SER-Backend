@@ -5,20 +5,18 @@ import auth from "../../middleware/auth.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { v2 as cloudinary } from "cloudinary";
 
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 const router = express.Router();
 
-// Multer setup for image upload
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/gallery/");
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    cb(null, Date.now() + "-" + file.fieldname + ext);
-  },
-});
-const upload = multer({ storage });
+// Multer config for temp storage before Cloudinary upload
+const upload = multer({ dest: "uploads/gallery/" });
 
 // Helper to get base URL
 function getBaseUrl(req) {
@@ -36,7 +34,14 @@ router.patch(
     const { title, event_name, date } = req.body;
     let image_url = null;
     if (req.file) {
-      image_url = `${getBaseUrl(req)}/uploads/gallery/${req.file.filename}`;
+      // Upload to Cloudinary
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "gallery",
+        resource_type: "image",
+      });
+      image_url = result.secure_url;
+      // Remove temp file
+      fs.unlinkSync(req.file.path);
     }
     try {
       // Fetch old image url if new image uploaded
@@ -60,15 +65,23 @@ router.patch(
         params.push(id);
       }
       const result = await pool.query(query, params);
-      // Remove old image file if replaced
-      if (
-        image_url &&
-        oldImage &&
-        oldImage !== image_url &&
-        oldImage.includes("/uploads/gallery/")
-      ) {
-        const oldPath = oldImage.replace(getBaseUrl(req), "");
-        fs.unlink(path.join(process.cwd(), oldPath), () => {});
+      // Remove old image file or Cloudinary image if replaced
+      if (image_url && oldImage && oldImage !== image_url) {
+        if (oldImage.startsWith("http")) {
+          // Delete from Cloudinary using public_id
+          const matches = oldImage.match(/\/gallery\/([^\.]+)\./);
+          if (matches && matches[1]) {
+            const publicId = `gallery/${matches[1]}`;
+            try {
+              await cloudinary.uploader.destroy(publicId, {
+                resource_type: "image",
+              });
+            } catch {}
+          }
+        } else if (oldImage.includes("/uploads/gallery/")) {
+          const oldPath = oldImage.replace(getBaseUrl(req), "");
+          fs.unlink(path.join(process.cwd(), oldPath), () => {});
+        }
       }
       res.json({ gallery: result.rows[0] });
     } catch (err) {
@@ -89,7 +102,14 @@ router.post(
     const { title, event_name, date } = req.body;
     let image_url = null;
     if (req.file) {
-      image_url = `${getBaseUrl(req)}/uploads/gallery/${req.file.filename}`;
+      // Upload to Cloudinary
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "gallery",
+        resource_type: "image",
+      });
+      image_url = result.secure_url;
+      // Remove temp file
+      fs.unlinkSync(req.file.path);
     }
     try {
       const result = await pool.query(
@@ -110,7 +130,7 @@ router.post(
 router.delete("/:id", auth, adminOnly, async (req, res) => {
   const { id } = req.params;
   try {
-    // Get image_url to delete file
+    // Get image_url to delete file or Cloudinary image
     const result = await pool.query(
       "SELECT image_url FROM gallery WHERE id = $1",
       [id]
@@ -118,14 +138,22 @@ router.delete("/:id", auth, adminOnly, async (req, res) => {
     const image_url = result.rows[0]?.image_url;
     // Delete from DB
     await pool.query("DELETE FROM gallery WHERE id = $1", [id]);
-    // Remove file if exists and is local
-    if (image_url && image_url.includes("/uploads/gallery/")) {
-      const base = process.env.BASE_URL;
-      const filePath =
-        base && image_url.startsWith(base)
-          ? image_url.replace(base, "")
-          : image_url;
-      fs.unlink(path.join(process.cwd(), filePath), () => {});
+    // Remove image from Cloudinary or local disk
+    if (image_url) {
+      if (image_url.startsWith("http")) {
+        const matches = image_url.match(/\/gallery\/([^\.]+)\./);
+        if (matches && matches[1]) {
+          const publicId = `gallery/${matches[1]}`;
+          try {
+            await cloudinary.uploader.destroy(publicId, {
+              resource_type: "image",
+            });
+          } catch {}
+        }
+      } else if (image_url.includes("/uploads/gallery/")) {
+        const oldPath = image_url.replace(getBaseUrl(req), "");
+        fs.unlink(path.join(process.cwd(), oldPath), () => {});
+      }
     }
     res.json({ message: "Gallery item deleted" });
   } catch (err) {
