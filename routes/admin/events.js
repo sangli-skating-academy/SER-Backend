@@ -72,6 +72,8 @@ router.patch(
         "is_featured",
         "rules_and_guidelines",
         "live", // <-- add live field
+        "event_category", // <-- add event_category
+        "skate_category", // <-- add skate_category
       ];
       let setClauses = [];
       let params = [];
@@ -80,14 +82,19 @@ router.patch(
         if (updateFields[key] !== undefined) {
           setClauses.push(`${key} = $${idx}`);
           // Parse JSON fields if needed
-          if (key === "hashtags" && typeof updateFields[key] === "string") {
+          if (
+            (key === "hashtags" ||
+              key === "rules_and_guidelines" ||
+              key === "event_category") &&
+            typeof updateFields[key] === "string"
+          ) {
             try {
               params.push(JSON.parse(updateFields[key]));
             } catch {
               params.push(updateFields[key]);
             }
           } else if (
-            key === "rules_and_guidelines" &&
+            key === "skate_category" &&
             typeof updateFields[key] === "string"
           ) {
             try {
@@ -176,6 +183,8 @@ router.post("/", auth, adminAuth, upload.single("file"), async (req, res) => {
       "is_featured",
       "rules_and_guidelines",
       "live", // <-- add live field
+      "event_category", // <-- add event_category
+      "skate_category", // <-- add skate_category
     ];
     let columns = [];
     let values = [];
@@ -197,16 +206,18 @@ router.post("/", auth, adminAuth, upload.single("file"), async (req, res) => {
         }
         columns.push(key);
         values.push(`$${idx}`);
-        if (key === "hashtags" && typeof value === "string") {
+        if (
+          (key === "hashtags" ||
+            key === "rules_and_guidelines" ||
+            key === "event_category") &&
+          typeof value === "string"
+        ) {
           try {
             params.push(JSON.parse(value));
           } catch {
             params.push(value);
           }
-        } else if (
-          key === "rules_and_guidelines" &&
-          typeof value === "string"
-        ) {
+        } else if (key === "skate_category" && typeof value === "string") {
           try {
             params.push(JSON.parse(value));
           } catch {

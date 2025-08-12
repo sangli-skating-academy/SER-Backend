@@ -16,4 +16,21 @@ router.get("/all", auth, adminOnly, async (req, res) => {
   }
 });
 
+// DELETE /api/admin/contact/:id (admin only)
+router.delete("/:id", auth, adminOnly, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      "DELETE FROM contact_messages WHERE id = $1 RETURNING id",
+      [id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: "Database error", details: err.message });
+  }
+});
+
 export default router;

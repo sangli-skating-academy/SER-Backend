@@ -39,7 +39,7 @@ The event_categories table has been dropped. Event categories are now handled vi
 
 Stores all event information.
 
-````sql
+```sql
 CREATE TABLE events (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
@@ -59,11 +59,14 @@ CREATE TABLE events (
   created_by INT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   rules_and_guidelines JSONB -- Stores general rules, equipment requirements, scoring system, etc.
-  live BOOLEAN DEFAULT FALSE
+  live BOOLEAN DEFAULT FALSE,
+  event_category JSONB DEFAULT '{}',
+  skate_category TEXT[] DEFAULT '{}'
 );
 
 CREATE INDEX idx_events_created_by ON events(created_by);
 CREATE INDEX idx_events_hashtags ON events USING GIN (hashtags);
+```
 
 ---
 
@@ -83,7 +86,7 @@ CREATE TABLE teams (
 
 CREATE INDEX idx_teams_event_id ON teams(event_id);
 CREATE INDEX idx_teams_captain_id ON teams(captain_id);
-````
+```
 
 ---
 
@@ -133,6 +136,7 @@ CREATE TABLE user_details (
   aadhaar_number VARCHAR(20),
   aadhaar_image VARCHAR(255),
   event_id INT REFERENCES events(id) ON DELETE CASCADE,
+  event_category JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -194,6 +198,34 @@ CREATE TABLE contact_messages (
   message TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+```
+
+---
+
+#### 10. Class Registrations
+
+Tracks all class registrations.
+
+```sql
+CREATE TABLE class_registrations (
+  id SERIAL PRIMARY KEY,
+  user_id INT REFERENCES users(id) ON DELETE SET NULL,
+  full_name VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(20) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  age INT,
+  gender VARCHAR(10) CHECK (gender IN ('male', 'female', 'other')),
+  razorpay_order_id VARCHAR(100),
+  razorpay_payment_id VARCHAR(100),
+  amount DECIMAL(10, 2) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('success', 'failed', 'pending')),
+  issue_date DATE,
+  end_date DATE,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_class_registrations_email ON class_registrations(email);
+CREATE INDEX idx_class_registrations_phone ON class_registrations(phone_number);
 ```
 
 ---

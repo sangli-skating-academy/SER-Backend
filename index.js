@@ -15,6 +15,7 @@ import secureFile from "./routes/securefile.js";
 import galleryRoutes from "./routes/galleryRoutes.js";
 import teamRoutes from "./routes/teamRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import clubRoutes from "./routes/clubRoutes.js";
 
 import adminAllRegistrationRoutes from "./routes/admin/registrations.js";
 import adminGalleryRoutes from "./routes/admin/gallery.js";
@@ -95,6 +96,7 @@ app.use("/api/secure-file", secureFile); // Secure file routes (for users)
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/teams", teamRoutes); // Team routes
 app.use("/api/payment", paymentRoutes); // Payment routes for Razorpay integration
+app.use("/api/club", clubRoutes); // Club registration routes
 
 // Admin-only API Routes (all protected by auth & adminOnly)
 app.use("/api/admin/users", adminGetUsers); //Admin get all users data

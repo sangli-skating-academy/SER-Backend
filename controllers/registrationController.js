@@ -102,9 +102,11 @@ export async function registerForEvent(req, res) {
 
     // Insert user details (per registration, not per user/event)
     // Always insert a new user_details row for every registration
+    // Get selected event_category from registration form (frontend)
+    let eventCategory = userDetails.event_category;
     const detailsRes = await pool.query(
-      `INSERT INTO user_details (user_id, event_id, coach_name, club_name, gender, age_group, first_name, middle_name, last_name, district,  state, date_of_birth, category, aadhaar_number, aadhaar_image)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      `INSERT INTO user_details (user_id, event_id, coach_name, club_name, gender, age_group, first_name, middle_name, last_name, district,  state, date_of_birth, category, skate_category, aadhaar_number, aadhaar_image, event_category)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING id`,
       [
         userId,
@@ -120,8 +122,10 @@ export async function registerForEvent(req, res) {
         userDetails.state,
         userDetails.date_of_birth,
         userDetails.category,
+        userDetails.skate_category,
         userDetails.aadhaar_number,
         aadhaarImage,
+        JSON.stringify(eventCategory),
       ]
     );
     const userDetailsId = detailsRes.rows[0].id;

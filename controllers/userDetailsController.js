@@ -55,6 +55,10 @@ export const getUserDetailsByRegistration = async (req, res) => {
     // Remove team fields from user_details object
     const { team_id, team_name, team_members, is_team_event, ...userDetails } =
       row;
+    // Ensure skate_category is present (for legacy rows)
+    if (!("skate_category" in userDetails)) {
+      userDetails.skate_category = userDetails.category || null;
+    }
     res.json({ ...userDetails, team });
   } catch (err) {
     console.error("Error fetching user details:", err);
@@ -68,6 +72,10 @@ export const updateUserDetailsByRegistration = async (req, res) => {
   // Remove any fields not in user_details table (e.g., team)
   let fields = { ...req.body };
   delete fields.team;
+  // If skate_category is present, update it; else fallback to category
+  if ("skate_category" in fields && !fields.skate_category) {
+    fields.skate_category = fields.category || null;
+  }
   try {
     // Get user_details_id for this registration
     const regResult = await pool.query(
