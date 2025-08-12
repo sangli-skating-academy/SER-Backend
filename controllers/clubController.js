@@ -66,7 +66,7 @@ export const verifyClubPayment = async (req, res) => {
       }
       // Update payment details and status in class_registrations
       await pool.query(
-        `UPDATE class_registrations SET razorpay_order_id = $1, razorpay_payment_id = $2, status = 'confirmed' WHERE id = $3`,
+        `UPDATE class_registrations SET razorpay_order_id = $1, razorpay_payment_id = $2, status = 'success' WHERE id = $3`,
         [razorpay_order_id, razorpay_payment_id, registrationId]
       );
       return res.json({ success: true });
@@ -130,5 +130,18 @@ export const registerForClass = async (req, res) => {
     res.status(201).json({ registration: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: "Database error", details: err.message });
+  }
+};
+
+export const getUserMemberships = async (req, res) => {
+  const userId = req.params.userId;
+  try {
+    const result = await db.query(
+      `SELECT * FROM class_registrations WHERE user_id = $1 `,
+      [userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch memberships" });
   }
 };

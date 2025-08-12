@@ -133,6 +133,7 @@ CREATE TABLE user_details (
   state VARCHAR(100),
   date_of_birth DATE,
   category VARCHAR(20),
+  skate_category VARCHAR(50),
   aadhaar_number VARCHAR(20),
   aadhaar_image VARCHAR(255),
   event_id INT REFERENCES events(id) ON DELETE CASCADE,
