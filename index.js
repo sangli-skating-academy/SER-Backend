@@ -47,6 +47,7 @@ app.use((req, res, next) => {
 // Middlewares
 const allowedOrigins = [
   "http://localhost:5173",
+  "https://www.sangliskating.com",
   "https://ser-frontend-livid.vercel.app",
 ];
 
