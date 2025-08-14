@@ -31,7 +31,7 @@ router.patch(
   upload.single("file"),
   async (req, res) => {
     const { id } = req.params;
-    const { title, event_name, date } = req.body;
+    const { title, event_name, date, image_location } = req.body;
     let image_url = null;
     if (req.file) {
       // Upload to Cloudinary
@@ -55,13 +55,13 @@ router.patch(
       }
       // Build query and params for update
       let query =
-        "UPDATE gallery SET title = $1, event_name = $2, date = $3, uploaded_at = NOW()";
-      let params = [title, event_name, date];
+        "UPDATE gallery SET title = $1, event_name = $2, date = $3, image_location = $4, uploaded_at = NOW()";
+      let params = [title, event_name, date, image_location];
       if (image_url) {
-        query += ", image_url = $4 WHERE id = $5 RETURNING *";
+        query += ", image_url = $5 WHERE id = $6 RETURNING *";
         params.push(image_url, id);
       } else {
-        query += " WHERE id = $4 RETURNING *";
+        query += " WHERE id = $5 RETURNING *";
         params.push(id);
       }
       const result = await pool.query(query, params);
@@ -99,7 +99,7 @@ router.post(
   adminOnly,
   upload.single("file"),
   async (req, res) => {
-    const { title, event_name, date } = req.body;
+    const { title, event_name, date, image_location } = req.body;
     let image_url = null;
     if (req.file) {
       // Upload to Cloudinary
@@ -113,9 +113,9 @@ router.post(
     }
     try {
       const result = await pool.query(
-        `INSERT INTO gallery (title, event_name, date, image_url, uploaded_at)
-         VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
-        [title, event_name, date, image_url]
+        `INSERT INTO gallery (title, event_name, date, image_url, image_location, uploaded_at)
+         VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *`,
+        [title, event_name, date, image_url, image_location]
       );
       res.status(201).json({ gallery: result.rows[0] });
     } catch (err) {

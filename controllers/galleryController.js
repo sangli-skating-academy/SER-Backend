@@ -5,7 +5,7 @@ export const getLatestGalleryItems = async (req, res) => {
   try {
     // The new schema: gallery table has id, title, image_url, event_name, date, uploaded_at
     const result = await pool.query(
-      `SELECT id, title, image_url, event_name, date, uploaded_at
+      `SELECT id, title, image_url, event_name, image_location, date, uploaded_at
        FROM gallery
        ORDER BY uploaded_at DESC`
     );

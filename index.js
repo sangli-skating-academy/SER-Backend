@@ -23,6 +23,7 @@ import adminSecureFileRoutes from "./routes/admin/secureFile.js";
 import adminContactRoutes from "./routes/admin/contact.js";
 import adminGetUsers from "./routes/admin/users.js";
 import adminEventRoutes from "./routes/admin/events.js";
+import adminClassRegistrationRoutes from "./routes/admin/classRegistrations.js";
 
 import errorHandler from "./middleware/errorHandler.js";
 
@@ -106,6 +107,7 @@ app.use("/api/admin/secure-file", adminSecureFileRoutes); // Admin secure file r
 app.use("/api/admin/contact", adminContactRoutes); // Admin contact route
 app.use("/api/admin/registrations", adminAllRegistrationRoutes); // Admin registrations route
 app.use("/api/admin/events", adminEventRoutes); // Admin event routes
+app.use("/api/admin/class-registrations", adminClassRegistrationRoutes); // Admin class registration routes
 
 // 404 handler for unknown API routes
 app.use((req, res, next) => {

@@ -136,12 +136,18 @@ export const registerForClass = async (req, res) => {
 export const getUserMemberships = async (req, res) => {
   const userId = req.params.userId;
   try {
-    const result = await db.query(
-      `SELECT * FROM class_registrations WHERE user_id = $1 `,
+    const result = await pool.query(
+      `SELECT * FROM class_registrations WHERE user_id = $1 AND status = 'success' ORDER BY issue_date DESC`,
       [userId]
     );
+    if (result.rows.length === 0) {
+      return res.status(404).json([]);
+    }
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch memberships" });
+    res.status(500).json({
+      error: "Failed to fetch memberships",
+      details: err.message,
+    });
   }
 };

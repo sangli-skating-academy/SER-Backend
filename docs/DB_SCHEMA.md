@@ -177,7 +177,8 @@ CREATE TABLE gallery (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   image_url VARCHAR(255) NOT NULL,
-  event_name VARCHAR(255), -- Name of the event (user-filled)
+  event_name VARCHAR(255),
+  image_location VARCHAR(255),
   date DATE, -- Date of the gallery item (added)
   uploaded_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
