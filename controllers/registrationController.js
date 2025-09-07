@@ -157,27 +157,8 @@ export async function registerForEvent(req, res) {
       }
     }
 
-    // Send registration confirmation email (don't wait for it to complete)
-    sendRegistrationConfirmationEmail({
-      userEmail: user.email,
-      userName: user.username,
-      eventName: event.rows[0].name,
-      eventStartDate: event.rows[0].start_date,
-      eventEndDate: event.rows[0].end_date,
-      eventLocation: event.rows[0].location,
-      eventDescription: event.rows[0].description,
-      eventFees: event.rows[0].fees,
-      registrationType,
-      teamName: teamName || userDetails.team_name || null,
-      teamMembers: teamMembersForEmail,
-      registrationDate: new Date().toISOString(),
-    }).catch((error) => {
-      console.error(
-        "Failed to send registration confirmation email:",
-        error.message
-      );
-      // Don't fail the registration if email fails
-    });
+    // Email will be sent after successful payment verification
+    // See paymentController.js verifyPayment function
 
     res.status(201).json({ id: registrationId });
   } catch (err) {

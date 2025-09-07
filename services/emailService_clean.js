@@ -1,11 +1,7 @@
 import nodemailer from "nodemailer";
-import dotenv from "dotenv";
-
-// Load environment variables
-dotenv.config();
 
 // Email configuration
-const transporter = nodemailer.createTransport({
+const transporter = nodemailer.createTransporter({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
   port: process.env.SMTP_PORT || 587,
   secure: false,
@@ -268,6 +264,7 @@ export const sendWelcomeEmail = async (userDetails) => {
 
   try {
     const result = await transporter.sendMail(mailOptions);
+    console.log(`✅ Welcome email sent to ${email}`);
     return { success: true, messageId: result.messageId };
   } catch (error) {
     console.error(
@@ -287,22 +284,19 @@ export const sendRegistrationConfirmationEmail = async (
     userName,
     eventName,
     eventStartDate,
-    eventStartTime,
+    eventEndDate,
     eventLocation,
     registrationType,
     teamName,
     teamMembers,
     registrationDate,
     eventDescription,
-    eventPricePerPerson,
-    eventPricePerTeam,
+    eventFees,
     // Payment details (added for post-payment email)
     paymentId,
     orderId,
     paidAmount,
     paymentDate,
-    // User selected event category
-    userEventCategory,
   } = registrationDetails;
 
   const formatDate = (dateStr) => {
@@ -575,40 +569,19 @@ export const sendRegistrationConfirmationEmail = async (
             </div>
             
             <div class="detail-row">
-              <div class="detail-label">⏰ Start Time:</div>
-              <div class="detail-value">${eventStartTime || "TBD"}</div>
+              <div class="detail-label">🏁 End Date:</div>
+              <div class="detail-value">${formatDate(eventEndDate)}</div>
             </div>
             
             <div class="detail-row">
-              <div class="detail-label">💰 Registration Fee:</div>
-              <div class="detail-value">
-                ${
-                  registrationType === "individual"
-                    ? `₹${eventPricePerPerson || "Free"}`
-                    : `₹${eventPricePerTeam || "Free"}`
-                }
-              </div>
+              <div class="detail-label">💰 Event Fees:</div>
+              <div class="detail-value">₹${eventFees || "Free"}</div>
             </div>
             
             <div class="detail-row">
               <div class="detail-label">📝 Registration Date:</div>
               <div class="detail-value">${formatDate(registrationDate)}</div>
             </div>
-
-            ${
-              userEventCategory && userEventCategory.length > 0
-                ? `
-            <div class="detail-row">
-              <div class="detail-label">🏆 Selected Categories:</div>
-              <div class="detail-value">${
-                Array.isArray(userEventCategory)
-                  ? userEventCategory.join(", ")
-                  : userEventCategory
-              }</div>
-            </div>
-            `
-                : ""
-            }
           </div>
 
           ${
@@ -702,22 +675,9 @@ export const sendRegistrationConfirmationEmail = async (
     - Event Name: ${eventName}
     - Location: ${eventLocation || "TBA"}
     - Start Date: ${formatDate(eventStartDate)}
-    - Start Time: ${eventStartTime || "TBD"}
-    - Registration Fee: ${
-      registrationType === "individual"
-        ? `₹${eventPricePerPerson || "Free"}`
-        : `₹${eventPricePerTeam || "Free"}`
-    }
+    - End Date: ${formatDate(eventEndDate)}
+    - Event Fees: ₹${eventFees || "Free"}
     - Registration Date: ${formatDate(registrationDate)}
-    ${
-      userEventCategory && userEventCategory.length > 0
-        ? `- Selected Categories: ${
-            Array.isArray(userEventCategory)
-              ? userEventCategory.join(", ")
-              : userEventCategory
-          }`
-        : ""
-    }
     
     ${
       paymentId
@@ -784,6 +744,9 @@ export const sendRegistrationConfirmationEmail = async (
 
   try {
     const result = await transporter.sendMail(mailOptions);
+    console.log(
+      `✅ Registration confirmation email sent to ${userEmail} for event: ${eventName}`
+    );
     return { success: true, messageId: result.messageId };
   } catch (error) {
     console.error(

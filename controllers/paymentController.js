@@ -2,6 +2,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import pool from "../config/db.js";
+import { sendRegistrationConfirmationEmail } from "../services/emailService.js";
 
 dotenv.config();
 
@@ -89,6 +90,115 @@ export const verifyPayment = async (req, res) => {
         `UPDATE registrations SET status = 'confirmed' WHERE id = $1`,
         [registrationId]
       );
+
+      // 3. Send registration confirmation email after successful payment
+      try {
+        // Get complete registration and user details for email
+        const emailDataResult = await pool.query(
+          `SELECT 
+            r.id as registration_id,
+            r.registration_type,
+            r.created_at as registration_date,
+            u.username,
+            u.email as user_email,
+            e.title as event_name,
+            e.title as event_title,
+            e.start_date,
+            e.start_time,
+            e.location,
+            e.description,
+            e.price_per_person,
+            e.price_per_team,
+            t.name as team_name,
+            t.members as team_members,
+            p.razorpay_payment_id,
+            p.razorpay_order_id,
+            p.amount as payment_amount,
+            ud.event_category as user_event_category
+          FROM registrations r
+          JOIN users u ON r.user_id = u.id
+          JOIN events e ON r.event_id = e.id
+          LEFT JOIN teams t ON r.team_id = t.id
+          LEFT JOIN payments p ON p.registration_id = r.id
+          LEFT JOIN user_details ud ON r.user_details_id = ud.id
+          WHERE r.id = $1 AND p.status = 'success'
+          ORDER BY p.created_at DESC
+          LIMIT 1`,
+          [registrationId]
+        );
+
+        if (emailDataResult.rows.length > 0) {
+          const emailData = emailDataResult.rows[0];
+
+          // Parse team members if exists
+          let teamMembersForEmail = [];
+          if (emailData.team_members) {
+            try {
+              teamMembersForEmail = JSON.parse(emailData.team_members);
+            } catch (error) {
+              console.error("Error parsing team members for email:", error);
+              teamMembersForEmail = [];
+            }
+          }
+
+          // Parse user event category if exists
+          let userEventCategory = [];
+          if (emailData.user_event_category) {
+            try {
+              userEventCategory = JSON.parse(emailData.user_event_category);
+            } catch (error) {
+              console.error(
+                "Error parsing user event category for email:",
+                error
+              );
+              userEventCategory = [];
+            }
+          }
+
+          // Send confirmation email with payment details
+          sendRegistrationConfirmationEmail({
+            userEmail: emailData.user_email,
+            userName: emailData.username,
+            eventName: emailData.event_name || emailData.event_title,
+            eventStartDate: emailData.start_date,
+            eventStartTime: emailData.start_time,
+            eventLocation: emailData.location,
+            eventDescription: emailData.description,
+            eventPricePerPerson: emailData.price_per_person,
+            eventPricePerTeam: emailData.price_per_team,
+            registrationType: emailData.registration_type,
+            teamName: emailData.team_name,
+            teamMembers: teamMembersForEmail,
+            registrationDate: emailData.registration_date,
+            // Payment details
+            paymentId: emailData.razorpay_payment_id,
+            orderId: emailData.razorpay_order_id,
+            paidAmount: emailData.payment_amount,
+            paymentDate: new Date().toISOString(),
+            // User selected event category
+            userEventCategory: userEventCategory,
+          })
+            .then(() => {
+              // Email sent successfully - no need to log in production
+            })
+            .catch((error) => {
+              console.error(
+                "❌ Failed to send registration confirmation email:",
+                error.message
+              );
+              // Don't fail the payment verification if email fails
+            });
+        } else {
+          // No email data found - log error for debugging
+          console.error(
+            `No email data found for registration ${registrationId}`
+          );
+        }
+      } catch (emailError) {
+        console.error("Email sending error:", emailError.message);
+        // Don't fail the payment if email fails
+      }
+
       return res.json({ success: true });
     } catch (err) {
       return res.status(500).json({

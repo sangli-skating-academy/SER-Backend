@@ -69,9 +69,61 @@ export const getUserDetailsByRegistration = async (req, res) => {
 // Update user_details for a registration (by registrationId)
 export const updateUserDetailsByRegistration = async (req, res) => {
   const { registrationId } = req.params;
+
+  // Validate input
+  if (!req.body || Object.keys(req.body).length === 0) {
+    return res.status(400).json({ message: "No data provided for update" });
+  }
+
   // Remove any fields not in user_details table (e.g., team)
   let fields = { ...req.body };
   delete fields.team;
+
+  // Handle JSON fields properly
+  if (fields.event_category !== undefined) {
+    if (fields.event_category === null || fields.event_category === "") {
+      // Handle empty/null values
+      fields.event_category = "{}";
+    } else if (typeof fields.event_category === "string") {
+      try {
+        // If it's already a JSON string, parse and re-stringify to validate
+        const parsed = JSON.parse(fields.event_category);
+        fields.event_category = JSON.stringify(parsed);
+      } catch (error) {
+        // If parsing fails, treat it as a single item and create proper JSON array
+        fields.event_category = JSON.stringify([fields.event_category]);
+      }
+    } else if (Array.isArray(fields.event_category)) {
+      // If it's already an array, stringify it
+      fields.event_category = JSON.stringify(fields.event_category);
+    } else if (typeof fields.event_category === "object") {
+      // If it's an object, stringify it
+      fields.event_category = JSON.stringify(fields.event_category);
+    }
+  }
+
+  // Additional validation: ensure all fields that should be JSON are properly formatted
+  const jsonFields = ["event_category"];
+  for (const fieldName of jsonFields) {
+    if (fields[fieldName] !== undefined) {
+      try {
+        // Test if it's valid JSON by parsing it
+        JSON.parse(fields[fieldName]);
+      } catch (error) {
+        // Convert invalid JSON to empty object or array as appropriate
+        fields[fieldName] = fieldName.includes("category") ? "[]" : "{}";
+      }
+    }
+  }
+
+  // Handle other potential JSON fields
+  if (
+    fields.previous_experience &&
+    typeof fields.previous_experience === "object"
+  ) {
+    fields.previous_experience = JSON.stringify(fields.previous_experience);
+  }
+
   // If skate_category is present, update it; else fallback to category
   if ("skate_category" in fields && !fields.skate_category) {
     fields.skate_category = fields.category || null;
@@ -148,10 +200,11 @@ export const updateUserDetailsByRegistration = async (req, res) => {
       .join(", ");
     const values = [userDetailsId, ...Object.values(fields)];
     const updateQuery = `UPDATE user_details SET ${setClause} WHERE id = $1 RETURNING *`;
+
     const updateResult = await pool.query(updateQuery, values);
     res.json(updateResult.rows[0]);
   } catch (err) {
-    console.error("Error updating user details:", err);
+    console.error("Error updating user details:", err.message);
     res.status(500).json({ message: "Server error" });
   }
 };
