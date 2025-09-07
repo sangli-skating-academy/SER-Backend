@@ -12,7 +12,10 @@ const storage = multer.diskStorage({
     cb(null, "uploads/aadhaar/");
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
+    // Include user ID in filename for security
+    const userId = req.user?.id || "unknown";
+    const uniqueName = `${userId}-${Date.now()}-${file.originalname}`;
+    cb(null, uniqueName);
   },
 });
 
