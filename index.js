@@ -24,8 +24,13 @@ import adminContactRoutes from "./routes/admin/contact.js";
 import adminGetUsers from "./routes/admin/users.js";
 import adminEventRoutes from "./routes/admin/events.js";
 import adminClassRegistrationRoutes from "./routes/admin/classRegistrations.js";
+import adminEventCleanupRoutes from "./routes/admin/eventCleanup.js";
 
 import errorHandler from "./middleware/errorHandler.js";
+
+// Import and start scheduled jobs
+import { scheduleEventCleanup } from "./jobs/eventCleanupJob.js";
+import { scheduleEventStatusUpdate } from "./jobs/eventStatusJob.js";
 
 dotenv.config();
 
@@ -108,6 +113,7 @@ app.use("/api/admin/contact", adminContactRoutes); // Admin contact route
 app.use("/api/admin/registrations", adminAllRegistrationRoutes); // Admin registrations route
 app.use("/api/admin/events", adminEventRoutes); // Admin event routes
 app.use("/api/admin/class-registrations", adminClassRegistrationRoutes); // Admin class registration routes
+app.use("/api/admin/event-cleanup", adminEventCleanupRoutes); // Admin event cleanup routes
 
 // 404 handler for unknown API routes
 app.use((req, res, next) => {
@@ -117,4 +123,11 @@ app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+
+  // Start scheduled jobs
+  scheduleEventStatusUpdate();
+  console.log("Event status update job scheduled successfully");
+
+  scheduleEventCleanup();
+  console.log("Event cleanup job scheduled successfully");
 });
