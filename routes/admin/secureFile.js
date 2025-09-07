@@ -25,10 +25,29 @@ router.get("/:filename", auth, adminOnly, async (req, res) => {
     if (result.rows.length > 0) {
       const aadhaarImageUrl = result.rows[0].aadhaar_image;
 
-      // If it's a Cloudinary URL, redirect to it
+      // If it's a Cloudinary URL, fetch and proxy it
       if (aadhaarImageUrl && aadhaarImageUrl.startsWith("http")) {
-        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
-        return res.redirect(aadhaarImageUrl);
+        try {
+          const imageResponse = await fetch(aadhaarImageUrl);
+          if (!imageResponse.ok) {
+            return res.status(404).send("Image not found on Cloudinary");
+          }
+
+          // Set appropriate headers
+          res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+          res.setHeader(
+            "Content-Type",
+            imageResponse.headers.get("content-type") || "image/png"
+          );
+          res.setHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
+
+          // Pipe the image response to the client
+          const imageBuffer = await imageResponse.arrayBuffer();
+          return res.send(Buffer.from(imageBuffer));
+        } catch (error) {
+          console.error("Error fetching Cloudinary image:", error);
+          return res.status(500).send("Error fetching image");
+        }
       }
     }
 
