@@ -1,6 +1,7 @@
 // Controller for event registration (individual/team)
 import pool from "../config/db.js";
 import { v2 as cloudinary } from "cloudinary";
+import { sendRegistrationConfirmationEmail } from "../services/emailService.js";
 
 // Cloudinary config
 cloudinary.config({
@@ -134,6 +135,49 @@ export async function registerForEvent(req, res) {
       "UPDATE registrations SET user_details_id = $1 WHERE id = $2",
       [userDetailsId, registrationId]
     );
+
+    // Get user details for email
+    const userResult = await pool.query(
+      "SELECT username, email FROM users WHERE id = $1",
+      [userId]
+    );
+    const user = userResult.rows[0];
+
+    // Prepare team members data for email (if team registration)
+    let teamMembersForEmail = [];
+    if (teamId && teamMembers) {
+      try {
+        teamMembersForEmail =
+          typeof teamMembers === "string"
+            ? JSON.parse(teamMembers)
+            : teamMembers;
+      } catch (error) {
+        console.error("Error parsing team members for email:", error);
+        teamMembersForEmail = [];
+      }
+    }
+
+    // Send registration confirmation email (don't wait for it to complete)
+    sendRegistrationConfirmationEmail({
+      userEmail: user.email,
+      userName: user.username,
+      eventName: event.rows[0].name,
+      eventStartDate: event.rows[0].start_date,
+      eventEndDate: event.rows[0].end_date,
+      eventLocation: event.rows[0].location,
+      eventDescription: event.rows[0].description,
+      eventFees: event.rows[0].fees,
+      registrationType,
+      teamName: teamName || userDetails.team_name || null,
+      teamMembers: teamMembersForEmail,
+      registrationDate: new Date().toISOString(),
+    }).catch((error) => {
+      console.error(
+        "Failed to send registration confirmation email:",
+        error.message
+      );
+      // Don't fail the registration if email fails
+    });
 
     res.status(201).json({ id: registrationId });
   } catch (err) {

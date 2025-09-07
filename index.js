@@ -25,12 +25,14 @@ import adminGetUsers from "./routes/admin/users.js";
 import adminEventRoutes from "./routes/admin/events.js";
 import adminClassRegistrationRoutes from "./routes/admin/classRegistrations.js";
 import adminEventCleanupRoutes from "./routes/admin/eventCleanup.js";
+import adminClassCleanupRoutes from "./routes/admin/classCleanup.js";
 
 import errorHandler from "./middleware/errorHandler.js";
 
 // Import and start scheduled jobs
-import { scheduleEventCleanup } from "./jobs/eventCleanupJob.js";
 import { scheduleEventStatusUpdate } from "./jobs/eventStatusJob.js";
+import { scheduleEventCleanup } from "./jobs/eventCleanupJob.js";
+import { scheduleClassRegistrationCleanup } from "./jobs/classRegistrationCleanupJob.js";
 
 dotenv.config();
 
@@ -114,6 +116,7 @@ app.use("/api/admin/registrations", adminAllRegistrationRoutes); // Admin regist
 app.use("/api/admin/events", adminEventRoutes); // Admin event routes
 app.use("/api/admin/class-registrations", adminClassRegistrationRoutes); // Admin class registration routes
 app.use("/api/admin/event-cleanup", adminEventCleanupRoutes); // Admin event cleanup routes
+app.use("/api/admin/class-cleanup", adminClassCleanupRoutes); // Admin class cleanup routes
 
 // 404 handler for unknown API routes
 app.use((req, res, next) => {
@@ -130,4 +133,7 @@ app.listen(PORT, () => {
 
   scheduleEventCleanup();
   console.log("Event cleanup job scheduled successfully");
+
+  scheduleClassRegistrationCleanup();
+  console.log("Class registration cleanup job scheduled successfully");
 });

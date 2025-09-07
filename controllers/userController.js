@@ -1,6 +1,7 @@
 import pool from "../config/db.js";
 import bcrypt from "bcryptjs";
 import generateToken from "../utils/generateToken.js";
+import { sendWelcomeEmail } from "../services/emailService.js";
 
 // Register a new user
 export const registerUser = async (req, res, next) => {
@@ -37,6 +38,16 @@ export const registerUser = async (req, res, next) => {
       sameSite: "none",
       partitioned: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+    });
+
+    // Send welcome email (don't wait for it to complete)
+    sendWelcomeEmail({
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    }).catch((error) => {
+      console.error("Failed to send welcome email:", error.message);
+      // Don't fail the registration if email fails
     });
 
     res.status(201).json({ user });
