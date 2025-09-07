@@ -35,6 +35,7 @@ export const registerUser = async (req, res, next) => {
       httpOnly: true,
       secure: true,
       sameSite: "none",
+      partitioned: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
     });
 
@@ -72,6 +73,7 @@ export const loginUser = async (req, res, next) => {
       httpOnly: true,
       secure: true,
       sameSite: "none",
+      partitioned: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
     });
 
@@ -135,5 +137,21 @@ export const updateMe = async (req, res) => {
     res
       .status(500)
       .json({ message: "Failed to update user info.", details: err.message });
+  }
+};
+
+// Logout user
+export const logoutUser = (req, res) => {
+  try {
+    // Clear the auth_token cookie
+    res.clearCookie("auth_token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      partitioned: true,
+    });
+    res.status(200).json({ message: "Logged out successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Logout failed", details: err.message });
   }
 };

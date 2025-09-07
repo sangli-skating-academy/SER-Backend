@@ -2,6 +2,7 @@ import express from "express";
 import {
   registerUser,
   loginUser,
+  logoutUser,
   getMe,
   updateMe,
 } from "../controllers/userController.js";
@@ -14,6 +15,9 @@ router.post("/register", registerUser);
 
 // @route   POST /api/users/login
 router.post("/login", loginUser);
+
+// @route   POST /api/users/logout
+router.post("/logout", logoutUser);
 
 // @route   GET /api/users/me
 router.get("/me", auth, getMe);
