@@ -264,15 +264,6 @@ async function cleanupEventData(eventId) {
     // 4. Delete teams for this event
     await client.query("DELETE FROM teams WHERE event_id = $1", [eventId]);
 
-    // 5. Delete gallery items for this event (if event_name matches)
-    await client.query(
-      "DELETE FROM gallery WHERE event_name = (SELECT title FROM events WHERE id = $1)",
-      [eventId]
-    );
-
-    // 6. Finally, delete the event itself
-    await client.query("DELETE FROM events WHERE id = $1", [eventId]);
-
     await client.query("COMMIT");
     console.log(`Successfully cleaned up all data for event ID: ${eventId}`);
   } catch (error) {
