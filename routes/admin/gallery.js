@@ -44,17 +44,6 @@ router.patch(
       fs.unlinkSync(req.file.path);
     }
     try {
-      // Check if a gallery item with the same title already exists (excluding the current item)
-      const existing = await pool.query(
-        "SELECT * FROM gallery WHERE title = $1 AND id != $2",
-        [title, id]
-      );
-      if (existing.rows.length > 0) {
-        return res
-          .status(400)
-          .json({ error: "Gallery item with this title already exists" });
-      }
-
       // Fetch old image url if new image uploaded
       let oldImage = null;
       if (image_url) {
@@ -123,17 +112,6 @@ router.post(
       fs.unlinkSync(req.file.path);
     }
     try {
-      // Check if a gallery item with the same title already exists
-      const existing = await pool.query(
-        "SELECT * FROM gallery WHERE title = $1",
-        [title]
-      );
-      if (existing.rows.length > 0) {
-        return res
-          .status(400)
-          .json({ error: "Gallery item with this title already exists" });
-      }
-
       const result = await pool.query(
         `INSERT INTO gallery (title, event_name, date, image_url, image_location, uploaded_at)
          VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *`,

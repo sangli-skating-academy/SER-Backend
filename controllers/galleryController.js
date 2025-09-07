@@ -7,7 +7,7 @@ export const getLatestGalleryItems = async (req, res) => {
     const result = await pool.query(
       `SELECT id, title, image_url, event_name, image_location, date, uploaded_at
        FROM gallery
-       ORDER BY date DESC`
+       ORDER BY uploaded_at DESC`
     );
     res.json(result.rows);
   } catch (err) {
