@@ -1,6 +1,7 @@
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import pool from "../config/db.js";
 
 dotenv.config();
 
@@ -88,7 +89,6 @@ export const verifyClubPayment = async (req, res) => {
     return res.status(400).json({ success: false, error: "Invalid signature" });
   }
 };
-import pool from "../config/db.js";
 
 export const registerForClass = async (req, res) => {
   try {
@@ -140,9 +140,7 @@ export const getUserMemberships = async (req, res) => {
       `SELECT * FROM class_registrations WHERE user_id = $1 AND status = 'success' ORDER BY issue_date DESC`,
       [userId]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json([]);
-    }
+    // Return empty array instead of 404 when no memberships found
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({
