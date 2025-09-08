@@ -94,6 +94,18 @@ app.get("/", (req, res) => {
   res.send("Sport event registration Backend Running! 🛡️");
 });
 
+// Health check endpoint for keep-alive
+app.get("/health", (req, res) => {
+  const timestamp = new Date().toISOString();
+  res.status(200).json({
+    status: "healthy",
+    message: "Backend is running",
+    timestamp,
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || "development",
+  });
+});
+
 // API Routes
 // All user routes are protected by auth middleware
 app.use("/api/users", userRoutes);
