@@ -2,6 +2,10 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import pool from "../config/db.js";
+import {
+  sendClubRegistrationSuccessEmail,
+  sendClubRegistrationAdminNotification,
+} from "../services/emailService.js";
 
 dotenv.config();
 
@@ -55,9 +59,9 @@ export const verifyClubPayment = async (req, res) => {
   const generatedSignature = hmac.digest("hex");
   if (generatedSignature === razorpay_signature) {
     try {
-      // Fetch the registration row
+      // Fetch the registration row with all details
       const regResult = await pool.query(
-        `SELECT id FROM class_registrations WHERE id = $1`,
+        `SELECT * FROM class_registrations WHERE id = $1`,
         [registrationId]
       );
       if (!regResult.rows.length) {
@@ -65,12 +69,60 @@ export const verifyClubPayment = async (req, res) => {
           .status(404)
           .json({ success: false, error: "Registration not found" });
       }
+
+      const registrationData = regResult.rows[0];
+
       // Update payment details and status in class_registrations
       await pool.query(
         `UPDATE class_registrations SET razorpay_order_id = $1, razorpay_payment_id = $2, status = 'success' WHERE id = $3`,
         [razorpay_order_id, razorpay_payment_id, registrationId]
       );
-      return res.json({ success: true });
+
+      // Send success email to the student
+      try {
+        const emailData = {
+          email: registrationData.email,
+          full_name: registrationData.full_name,
+          phone_number: registrationData.phone_number,
+          amount: registrationData.amount,
+          issue_date: registrationData.issue_date,
+          end_date: registrationData.end_date,
+          razorpay_payment_id: razorpay_payment_id,
+          age: registrationData.age,
+          gender: registrationData.gender,
+        };
+
+        const emailResult = await sendClubRegistrationSuccessEmail(emailData);
+        if (emailResult.success) {
+          console.log(`✅ Success email sent to: ${registrationData.email}`);
+        } else {
+          console.error(
+            `❌ Failed to send success email: ${emailResult.error}`
+          );
+        }
+
+        // Send admin notification email
+        const adminNotification = await sendClubRegistrationAdminNotification(
+          emailData
+        );
+        if (adminNotification.success) {
+          console.log(
+            `✅ Admin notification sent for registration: ${registrationData.full_name}`
+          );
+        } else {
+          console.error(
+            `❌ Failed to send admin notification: ${adminNotification.error}`
+          );
+        }
+      } catch (emailError) {
+        console.error("❌ Email sending error:", emailError);
+        // Don't fail the payment verification due to email issues
+      }
+
+      return res.json({
+        success: true,
+        message: "Payment verified and confirmation emails sent!",
+      });
     } catch (err) {
       return res.status(500).json({
         success: false,
@@ -109,6 +161,7 @@ export const registerForClass = async (req, res) => {
     if (!user_id || !full_name || !phone_number || !email || !amount) {
       return res.status(400).json({ error: "Missing required fields" });
     }
+
     const result = await pool.query(
       `INSERT INTO class_registrations (user_id, full_name, phone_number, email, age, gender, razorpay_order_id, razorpay_payment_id, amount, status, issue_date, end_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
@@ -127,7 +180,50 @@ export const registerForClass = async (req, res) => {
         end_date,
       ]
     );
-    res.status(201).json({ registration: result.rows[0] });
+
+    const registrationData = result.rows[0];
+
+    // Send emails if status is 'success' and payment details exist
+    if ((status === "success" || !status) && razorpay_payment_id) {
+      try {
+        const emailData = {
+          email,
+          full_name,
+          phone_number,
+          amount,
+          issue_date,
+          end_date,
+          razorpay_payment_id,
+          age,
+          gender,
+        };
+
+        // Send success email to student
+        const emailResult = await sendClubRegistrationSuccessEmail(emailData);
+        if (emailResult.success) {
+          console.log(`✅ Registration success email sent to: ${email}`);
+        }
+
+        // Send admin notification
+        const adminNotification = await sendClubRegistrationAdminNotification(
+          emailData
+        );
+        if (adminNotification.success) {
+          console.log(`✅ Admin notification sent for: ${full_name}`);
+        }
+      } catch (emailError) {
+        console.error(
+          "❌ Email sending error in registerForClass:",
+          emailError
+        );
+        // Don't fail the registration due to email issues
+      }
+    }
+
+    res.status(201).json({
+      registration: registrationData,
+      message: "Registration successful! Confirmation emails sent.",
+    });
   } catch (err) {
     res.status(500).json({ error: "Database error", details: err.message });
   }

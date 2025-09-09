@@ -794,7 +794,581 @@ export const sendRegistrationConfirmationEmail = async (
   }
 };
 
+// Send club/class registration success email after payment
+export const sendClubRegistrationSuccessEmail = async (registrationData) => {
+  try {
+    const {
+      email,
+      full_name,
+      phone_number,
+      amount,
+      issue_date,
+      end_date,
+      razorpay_payment_id,
+      age,
+      gender,
+    } = registrationData;
+
+    // Format dates for display
+    const formatDate = (date) => {
+      if (!date) return "N/A";
+      return new Date(date).toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    };
+
+    const issueFormatted = formatDate(issue_date);
+    const endFormatted = formatDate(end_date);
+    const paymentDate = new Date().toLocaleDateString("en-IN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    // HTML email template
+    const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Class Registration Confirmed - Sangli Skating Academy</title>
+      <style>
+        body {
+          font-family: 'Arial', sans-serif;
+          line-height: 1.6;
+          color: #333;
+          margin: 0;
+          padding: 0;
+          background-color: #f4f4f4;
+        }
+        .container {
+          max-width: 600px;
+          margin: 0 auto;
+          background: white;
+          padding: 0;
+          border-radius: 10px;
+          box-shadow: 0 0 20px rgba(0,0,0,0.1);
+          overflow: hidden;
+        }
+        .header {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 30px;
+          text-align: center;
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 28px;
+          margin-bottom: 10px;
+        }
+        .success-icon {
+          font-size: 48px;
+          margin-bottom: 15px;
+          display: block;
+        }
+        .content {
+          padding: 30px;
+        }
+        .welcome-message {
+          font-size: 18px;
+          margin-bottom: 30px;
+          color: #2c3e50;
+        }
+        .details-section {
+          background: #f8f9fa;
+          border-radius: 8px;
+          padding: 20px;
+          margin: 20px 0;
+        }
+        .detail-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 0;
+          border-bottom: 1px solid #e9ecef;
+        }
+        .detail-row:last-child {
+          border-bottom: none;
+        }
+        .label {
+          font-weight: bold;
+          color: #495057;
+          flex: 1;
+        }
+        .value {
+          color: #212529;
+          flex: 2;
+          text-align: right;
+        }
+        .amount-highlight {
+          font-size: 20px;
+          font-weight: bold;
+          color: #28a745;
+        }
+        .next-steps {
+          background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+          border-radius: 8px;
+          padding: 20px;
+          margin: 25px 0;
+        }
+        .next-steps h3 {
+          color: #1976d2;
+          margin-top: 0;
+        }
+        .steps-list {
+          list-style: none;
+          padding: 0;
+        }
+        .steps-list li {
+          padding: 8px 0;
+          display: flex;
+          align-items: center;
+        }
+        .steps-list li:before {
+          content: "✅";
+          margin-right: 10px;
+          font-size: 16px;
+        }
+        .cta-button {
+          display: inline-block;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          padding: 15px 30px;
+          text-decoration: none;
+          border-radius: 25px;
+          font-weight: bold;
+          margin: 20px 0;
+          text-align: center;
+        }
+        .footer {
+          background: #343a40;
+          color: white;
+          padding: 25px;
+          text-align: center;
+        }
+        .contact-info {
+          margin: 15px 0;
+        }
+        .contact-info p {
+          margin: 5px 0;
+        }
+        .disclaimer {
+          font-size: 12px;
+          color: #adb5bd;
+          margin-top: 20px;
+          line-height: 1.4;
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 600px) {
+          .container {
+            margin: 10px;
+            border-radius: 5px;
+          }
+          .header {
+            padding: 20px;
+          }
+          .header h1 {
+            font-size: 24px;
+          }
+          .content {
+            padding: 20px;
+          }
+          .detail-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+          }
+          .value {
+            text-align: left;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <span class="success-icon">🎉</span>
+          <h1>Registration Successful!</h1>
+          <p>Welcome to Sangli Skating Academy</p>
+        </div>
+        
+        <div class="content">
+          <div class="welcome-message">
+            Hello <strong>${full_name}</strong>!<br>
+            Congratulations! Your skating class registration and payment have been successfully processed. We're thrilled to have you join our skating community!
+          </div>
+          
+          <div class="details-section">
+            <h3 style="margin-top: 0; color: #495057;">📋 Registration Details</h3>
+            
+            <div class="detail-row">
+              <span class="label">Full Name:</span>
+              <span class="value">${full_name}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="label">Email:</span>
+              <span class="value">${email}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="label">Phone Number:</span>
+              <span class="value">${phone_number}</span>
+            </div>
+            
+            ${
+              age
+                ? `
+            <div class="detail-row">
+              <span class="label">Age:</span>
+              <span class="value">${age} years</span>
+            </div>
+            `
+                : ""
+            }
+            
+            ${
+              gender
+                ? `
+            <div class="detail-row">
+              <span class="label">Gender:</span>
+              <span class="value">${gender}</span>
+            </div>
+            `
+                : ""
+            }
+            
+            <div class="detail-row">
+              <span class="label">Amount Paid:</span>
+              <span class="value amount-highlight">₹${amount}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="label">Payment Date:</span>
+              <span class="value">${paymentDate}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="label">Membership Start:</span>
+              <span class="value">${issueFormatted}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="label">Membership End:</span>
+              <span class="value">${endFormatted}</span>
+            </div>
+            
+            <div class="detail-row">
+              <span class="label">Payment ID:</span>
+              <span class="value" style="font-family: monospace; font-size: 12px;">${razorpay_payment_id}</span>
+            </div>
+          </div>
+          
+          <div class="next-steps">
+            <h3>🎯 What's Next?</h3>
+            <ul class="steps-list">
+              <li><strong>Visit our academy</strong> with this email confirmation</li>
+              <li><strong>Bring safety gear:</strong> helmet, knee pads, elbow pads</li>
+              <li><strong>Arrive 15 minutes early</strong> for your first class</li>
+            </ul>
+          </div>
+          
+          <div style="text-align: center;">
+            <a href="https://www.sangliskating.com" class="cta-button">Visit Our Website</a>
+          </div>
+          
+          <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin: 20px 0;">
+            <h4 style="margin-top: 0; color: #856404;">📝 Important Notes:</h4>
+            <ul style="margin-bottom: 0; color: #856404;">
+              <li>Please save this email as proof of payment</li>
+              <li>Bring a water bottle and comfortable clothing</li>
+              <li>Refunds are available as per our refund policy</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <h3 style="margin-top: 0;">📞 Contact Information</h3>
+          <div class="contact-info">
+           <div style="text-align: left; margin: 15px 0;">
+              <p style="margin: 8px 0;"><strong>📧 Email:</strong> saiskating2200@gmail.com</p>
+              <p style="margin: 8px 0;"><strong>📱 Phone:</strong></p>
+              <p style="margin: 3px 0; padding-left: 20px;">+91 9595893434 (Mr. Suraj A. Shinde)</p>
+              <p style="margin: 3px 0; padding-left: 20px;">+91 9595473434 (Mrs. Parveen S. Shinde)</p>
+              <p style="margin: 8px 0;"><strong>🌐 Website:</strong> https://www.sangliskating.com</p>
+            </div>
+          </div>
+          
+          <div class="disclaimer">
+            This is an automated email confirmation. Please do not reply to this email.
+            For any queries, please contact us using the information provided above.
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+    `;
+
+    // Plain text version for email clients that don't support HTML
+    const textContent = `
+🎉 REGISTRATION SUCCESSFUL! 🎉
+
+Hello ${full_name}!
+
+Congratulations! Your skating class registration and payment have been successfully processed.
+
+REGISTRATION DETAILS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ Full Name: ${full_name}
+✓ Email: ${email}
+✓ Phone: ${phone_number}
+${age ? `✓ Age: ${age} years` : ""}
+${gender ? `✓ Gender: ${gender}` : ""}
+✓ Amount Paid: ₹${amount}
+✓ Payment Date: ${paymentDate}
+✓ Membership Start: ${issueFormatted}
+✓ Membership End: ${endFormatted}
+✓ Payment ID: ${razorpay_payment_id}
+
+WHAT'S NEXT:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏢 Visit our academy with this email confirmation
+🛡️ Bring safety gear: helmet, knee pads, elbow pads  
+⏰ Arrive 15 minutes early for your first class
+🌐 Check our website for schedules: www.sangliskating.com
+💧 Bring water bottle and wear comfortable clothing
+
+IMPORTANT NOTES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 Save this email as proof of payment
+🗣️ Classes conducted in English and Marathi
+💰 Refunds available as per our refund policy
+
+CONTACT INFORMATION:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏢 Sangli Skating Academy
+📧 saiskating2200@gmail.com
+📱 +91 9595893434 (Mr. Suraj A. Shinde), +91 9595473434 (Mrs. Parveen S. Shinde)
+📍 Sangli, Maharashtra
+🌐 www.sangliskating.com
+
+This is an automated email. Please do not reply.
+    `;
+
+    // Email options
+    const mailOptions = {
+      from: `"Sangli Skating Academy" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: `🎉 Registration Confirmed - Welcome to Sangli Skating Academy!`,
+      text: textContent,
+      html: htmlContent,
+    };
+
+    // Send email
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Club registration email sent to ${email}:`, info.messageId);
+
+    return {
+      success: true,
+      messageId: info.messageId,
+      recipient: email,
+    };
+  } catch (error) {
+    console.error("❌ Failed to send club registration email:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
+// Send admin notification for new club registration
+export const sendClubRegistrationAdminNotification = async (
+  registrationData
+) => {
+  try {
+    // Check if admin emails are configured
+    if (!process.env.ADMIN_NOTIFICATION_EMAILS) {
+      console.log(
+        "⚠️ No admin notification emails configured for club registration"
+      );
+      return { success: false, error: "No admin emails configured" };
+    }
+
+    const adminEmails = process.env.ADMIN_NOTIFICATION_EMAILS.split(",").map(
+      (email) => email.trim()
+    );
+
+    const {
+      full_name,
+      email,
+      phone_number,
+      amount,
+      issue_date,
+      end_date,
+      razorpay_payment_id,
+      age,
+      gender,
+    } = registrationData;
+
+    // Format dates
+    const formatDate = (date) => {
+      if (!date) return "N/A";
+      return new Date(date).toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    };
+
+    const issueFormatted = formatDate(issue_date);
+    const endFormatted = formatDate(end_date);
+    const registrationTime = new Date().toLocaleString("en-IN");
+
+    // HTML email for admin
+    const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .header { background: #28a745; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; }
+        .alert-badge { background: #dc3545; color: white; padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: bold; }
+        .detail-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .detail-table td { padding: 12px; border: 1px solid #ddd; }
+        .detail-table td:first-child { background: #f8f9fa; font-weight: bold; width: 40%; }
+        .amount-highlight { color: #28a745; font-weight: bold; font-size: 18px; }
+        .action-section { background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .footer { background: #6c757d; color: white; padding: 15px; text-align: center; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🆕 New Club Registration Alert</h1>
+          <span class="alert-badge">PAYMENT SUCCESSFUL</span>
+          <p>A new student has successfully registered and paid for classes!</p>
+        </div>
+        
+        <div class="content">
+          <h2>Student Registration Details:</h2>
+          
+          <table class="detail-table">
+            <tr>
+              <td>Student Name</td>
+              <td><strong>${full_name}</strong></td>
+            </tr>
+            <tr>
+              <td>Email Address</td>
+              <td>${email}</td>
+            </tr>
+            <tr>
+              <td>Phone Number</td>
+              <td>${phone_number}</td>
+            </tr>
+            ${
+              age
+                ? `
+            <tr>
+              <td>Age</td>
+              <td>${age} years</td>
+            </tr>
+            `
+                : ""
+            }
+            ${
+              gender
+                ? `
+            <tr>
+              <td>Gender</td>
+              <td>${gender}</td>
+            </tr>
+            `
+                : ""
+            }
+            <tr>
+              <td>Amount Paid</td>
+              <td class="amount-highlight">₹${amount}</td>
+            </tr>
+            <tr>
+              <td>Membership Start</td>
+              <td>${issueFormatted}</td>
+            </tr>
+            <tr>
+              <td>Membership End</td>
+              <td>${endFormatted}</td>
+            </tr>
+            <tr>
+              <td>Payment ID</td>
+              <td style="font-family: monospace; font-size: 12px;">${razorpay_payment_id}</td>
+            </tr>
+            <tr>
+              <td>Registration Time</td>
+              <td>${registrationTime}</td>
+            </tr>
+          </table>
+          
+          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+            <h4 style="margin-top: 0; color: #856404;">💡 Quick Stats:</h4>
+            <p style="margin-bottom: 0; color: #856404;">
+              <strong>Total Revenue Today:</strong> Check admin dashboard for updated totals<br>
+              <strong>Payment Method:</strong> Razorpay (Online)<br>
+              <strong>Status:</strong> ✅ Confirmed & Paid
+            </p>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <p><strong>Sangli Skating Academy</strong> - Admin Notification System</p>
+          <p>This is an automated notification. Check the admin dashboard for more details.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+    `;
+
+    // Send to all admin emails
+    const emailPromises = adminEmails.map((adminEmail) => {
+      const mailOptions = {
+        from: `"Sangli Skating Academy - System" <${process.env.SMTP_USER}>`,
+        to: adminEmail,
+        subject: `🆕 New Registration: ${full_name} - ₹${amount} PAID`,
+        html: htmlContent,
+      };
+
+      return transporter.sendMail(mailOptions);
+    });
+
+    await Promise.all(emailPromises);
+    console.log(
+      `✅ Admin notification emails sent to: ${adminEmails.join(", ")}`
+    );
+
+    return {
+      success: true,
+      recipients: adminEmails,
+    };
+  } catch (error) {
+    console.error("❌ Failed to send admin notification email:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
 export default {
   sendWelcomeEmail,
   sendRegistrationConfirmationEmail,
+  sendClubRegistrationSuccessEmail,
+  sendClubRegistrationAdminNotification,
 };
