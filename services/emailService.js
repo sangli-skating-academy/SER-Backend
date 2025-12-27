@@ -7,21 +7,39 @@ dotenv.config();
 // Email configuration
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: process.env.SMTP_PORT || 587,
-  secure: false,
+  port: parseInt(process.env.SMTP_PORT) || 587,
+  secure: false, // true for 465, false for other ports
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  tls: {
+    rejectUnauthorized: false, // Accept self-signed certificates (for development)
+    ciphers: "SSLv3", // Support legacy SSL
+  },
+  connectionTimeout: 20000, // 20 seconds timeout
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
+  debug: process.env.NODE_ENV === "development", // Enable debug in development
+  logger: process.env.NODE_ENV === "development", // Enable logging in development
 });
 
-// Verify email connection on startup
+// Verify email connection on startup (non-blocking)
 (async () => {
   try {
-    await transporter.verify();
+    const verifyWithTimeout = Promise.race([
+      transporter.verify(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Verification timeout")), 5000)
+      ),
+    ]);
+
+    await verifyWithTimeout;
     console.log("✅ Email service is ready");
   } catch (error) {
     console.error("❌ Email service failed:", error.message);
+    console.warn("⚠️  Server will continue but emails may not work");
+    console.warn("⚠️  Check SMTP credentials and network connectivity");
   }
 })();
 

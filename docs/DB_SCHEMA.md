@@ -232,6 +232,36 @@ CREATE INDEX idx_class_registrations_phone ON class_registrations(phone_number);
 
 ---
 
+#### 11. Class Registrations Archive
+
+Stores archived class registrations after they expire. This table is automatically populated by the cleanup job.
+
+```sql
+CREATE TABLE class_registrations_archive (
+  id SERIAL PRIMARY KEY,
+  original_id INT NOT NULL,
+  user_id INT,
+  full_name VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(20) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  age INT,
+  gender VARCHAR(10) CHECK (gender IN ('male', 'female', 'other')),
+  razorpay_order_id VARCHAR(100),
+  razorpay_payment_id VARCHAR(100),
+  amount DECIMAL(10, 2) NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  issue_date DATE,
+  end_date DATE,
+  created_at TIMESTAMPTZ,
+  archived_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_class_registrations_archive_email ON class_registrations_archive(email);
+CREATE INDEX idx_class_registrations_archive_original_id ON class_registrations_archive(original_id);
+```
+
+---
+
 ## Setup Instructions
 
 ### Database Setup
@@ -324,5 +354,5 @@ As the application grows:
 
 ---
 
-Document Version: 2.2  
-Last Updated: October 5, 2025
+Document Version: 2.3  
+Last Updated: December 27, 2025
