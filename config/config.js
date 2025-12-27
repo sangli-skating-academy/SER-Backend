@@ -55,8 +55,10 @@ export const CORS_CONFIG = {
     ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
     : [
         "http://localhost:5173",
-        "www.sangliskating.com",
+        "http://ser-frontend-livid.vercel.app/",
         "https://sangliskating.com",
+        "https://www.sangliskating.com/",
+        "",
       ],
   methods: ["GET", "POST", "PATCH", "DELETE"],
   credentials: true,
