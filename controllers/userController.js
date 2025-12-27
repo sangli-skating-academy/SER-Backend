@@ -119,6 +119,20 @@ export const updateMe = async (req, res) => {
   try {
     const { id } = req.user;
     const { username, email, phone } = req.body;
+
+    // Check if email is being changed and if it already exists
+    if (email) {
+      const emailExists = await pool.query(
+        "SELECT id FROM users WHERE email = $1 AND id != $2",
+        [email, id]
+      );
+      if (emailExists.rows.length > 0) {
+        return res.status(409).json({
+          message: "Email address is already registered to another account.",
+        });
+      }
+    }
+
     // Only update provided fields
     const fields = { username, email, phone };
     const setClauses = [];
@@ -145,6 +159,26 @@ export const updateMe = async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error("UpdateMe error:", err);
+
+    // Handle specific database constraint errors
+    if (err.code === "23505") {
+      // Unique constraint violation
+      if (err.constraint && err.constraint.includes("email")) {
+        return res.status(409).json({
+          message: "Email address is already registered to another account.",
+        });
+      } else if (err.constraint && err.constraint.includes("username")) {
+        return res.status(409).json({
+          message:
+            "Username is already taken. Please choose a different username.",
+        });
+      } else if (err.constraint && err.constraint.includes("phone")) {
+        return res.status(409).json({
+          message: "Phone number is already registered to another account.",
+        });
+      }
+    }
+
     res
       .status(500)
       .json({ message: "Failed to update user info.", details: err.message });

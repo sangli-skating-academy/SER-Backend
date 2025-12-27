@@ -1,18 +1,9 @@
-import Razorpay from "razorpay";
-import crypto from "crypto";
-import dotenv from "dotenv";
 import pool from "../config/db.js";
-import { sendRegistrationConfirmationEmail } from "../services/emailService.js";
-
-dotenv.config();
-
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_ID_KEY;
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_SECRET_KEY;
-
-const razorpay = new Razorpay({
-  key_id: RAZORPAY_KEY_ID,
-  key_secret: RAZORPAY_KEY_SECRET,
-});
+import razorpay, { verifyRazorpaySignature } from "../utils/razorpay.js";
+import {
+  sendRegistrationConfirmationEmail,
+  sendEventRegistrationAdminNotification,
+} from "../services/emailService.js";
 
 export const createOrder = async (req, res) => {
   try {
@@ -48,10 +39,15 @@ export const verifyPayment = async (req, res) => {
       .status(400)
       .json({ success: false, error: "Missing or invalid registrationId" });
   }
-  const hmac = crypto.createHmac("sha256", RAZORPAY_KEY_SECRET);
-  hmac.update(razorpay_order_id + "|" + razorpay_payment_id);
-  const generatedSignature = hmac.digest("hex");
-  if (generatedSignature === razorpay_signature) {
+
+  // Verify payment signature using centralized function
+  const isValid = verifyRazorpaySignature(
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature
+  );
+
+  if (isValid) {
     try {
       // Fetch the registration fee (in rupees) from the registration row
       const regResult = await pool.query(
@@ -93,6 +89,10 @@ export const verifyPayment = async (req, res) => {
 
       // 3. Send registration confirmation email after successful payment
       try {
+        console.log(
+          `📧 Fetching email data for registration ${registrationId}...`
+        );
+
         // Get complete registration and user details for email
         const emailDataResult = await pool.query(
           `SELECT 
@@ -101,6 +101,7 @@ export const verifyPayment = async (req, res) => {
             r.created_at as registration_date,
             u.username,
             u.email as user_email,
+            u.phone as user_phone,
             e.title as event_name,
             e.title as event_title,
             e.start_date,
@@ -127,8 +128,12 @@ export const verifyPayment = async (req, res) => {
           [registrationId]
         );
 
+        console.log(`📧 Email data rows found: ${emailDataResult.rows.length}`);
+
         if (emailDataResult.rows.length > 0) {
           const emailData = emailDataResult.rows[0];
+          console.log(`📧 Sending emails for event: ${emailData.event_name}`);
+          console.log(`📧 User email: ${emailData.user_email}`);
 
           // Parse team members if exists
           let teamMembersForEmail = [];
@@ -179,7 +184,7 @@ export const verifyPayment = async (req, res) => {
             userEventCategory: userEventCategory,
           })
             .then(() => {
-              // Email sent successfully - no need to log in production
+              console.log("✅ User confirmation email sent successfully");
             })
             .catch((error) => {
               console.error(
@@ -187,6 +192,37 @@ export const verifyPayment = async (req, res) => {
                 error.message
               );
               // Don't fail the payment verification if email fails
+            });
+
+          console.log("📧 Preparing to send admin notification...");
+
+          // Send admin notification for event registration
+          sendEventRegistrationAdminNotification({
+            userName: emailData.username,
+            userEmail: emailData.user_email,
+            userPhone: emailData.user_phone || "N/A",
+            eventName: emailData.event_name || emailData.event_title,
+            eventStartDate: emailData.start_date,
+            eventLocation: emailData.location,
+            registrationType: emailData.registration_type,
+            teamName: emailData.team_name,
+            teamMembers: teamMembersForEmail,
+            paymentAmount: emailData.payment_amount,
+            paymentId: emailData.razorpay_payment_id,
+            orderId: emailData.razorpay_order_id,
+            registrationDate: emailData.registration_date,
+            userEventCategory: userEventCategory,
+          })
+            .then(() => {
+              console.log("✅ Admin notification sent successfully");
+            })
+            .catch((error) => {
+              console.error(
+                "❌ Failed to send admin notification:",
+                error.message
+              );
+              console.error("Full error:", error);
+              // Don't fail the payment verification if admin email fails
             });
         } else {
           // No email data found - log error for debugging

@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { JWT_CONFIG } from "../config/config.js";
 
 /**
  * Express middleware to authenticate requests using JWT.
@@ -24,7 +25,7 @@ const auth = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.SESSION_SECRET);
+    const decoded = jwt.verify(token, JWT_CONFIG.SESSION_SECRET);
     req.user = decoded;
     next();
   } catch (err) {

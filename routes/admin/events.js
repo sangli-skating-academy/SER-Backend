@@ -4,15 +4,10 @@ import auth from "../../middleware/auth.js";
 import adminAuth from "../../middleware/admin.js";
 import multer from "multer";
 import path from "path";
-import { v2 as cloudinary } from "cloudinary";
+import cloudinary from "../../utils/cloudinary.js";
+import { SERVER_CONFIG } from "../../config/config.js";
 import fs from "fs";
 
-// Cloudinary config
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 const router = express.Router();
 
 // Multer config for temp storage before Cloudinary upload
@@ -22,7 +17,7 @@ const upload = multer({
 });
 
 function getBaseUrl(req) {
-  return process.env.BASE_URL;
+  return SERVER_CONFIG.BASE_URL;
 }
 
 // PATCH /api/admin/events/:eventId

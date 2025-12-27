@@ -1,7 +1,7 @@
 # 🏗️ Backend Architecture & Developer Guide
 
-**Version:** 2.0  
-**Last Updated:** December 27, 2025  
+**Version:** 2.1  
+**Last Updated:** December 28, 2025  
 **Project:** Sangli Skating Academy - Event Registration System
 
 ---
@@ -81,7 +81,8 @@ Each layer has a **single responsibility**:
 ```
 server/
 ├── config/                    # 🔧 Configuration files
-│   └── db.js                  # PostgreSQL connection pool
+│   ├── db.js                  # PostgreSQL connection pool
+│   └── config.js              # ✨ Centralized environment configuration
 │
 ├── controllers/               # 🎮 Request handlers (business logic)
 │   ├── clubController.js      # Class/membership registration
@@ -129,11 +130,15 @@ server/
 │
 ├── jobs/                      # ⏰ Scheduled background jobs
 │   ├── classRegistrationCleanupJob.js  # Archive expired classes
-│   ├── eventCleanupJob.js     # Archive past events
-│   └── eventStatusJob.js      # Update event status
+│   ├── contactCleanupJob.js   # ✨ Delete old contact messages (3 months)
+│   ├── eventCleanupJob.js     # Archive past events + Cloudinary cleanup
+│   ├── eventStatusJob.js      # Update event status
+│   └── paymentCleanupJob.js   # ✨ Archive failed/pending payments (60 days)
 │
 ├── utils/                     # 🧰 Helper functions
-│   └── generateToken.js       # JWT token generation
+│   ├── cloudinary.js          # ✨ Centralized Cloudinary operations
+│   ├── generateToken.js       # JWT token generation
+│   └── razorpay.js            # ✨ Centralized Razorpay utilities
 │
 ├── logs/                      # 📝 Application logs
 │   ├── access.js              # Access logs configuration
@@ -211,6 +216,127 @@ app.use(errorHandler);
 ---
 
 ### 2. **config/** - Configuration Layer
+
+#### **config.js** - Centralized Configuration ✨ NEW
+
+**Purpose:** Single source of truth for all environment variables
+
+```javascript
+import dotenv from "dotenv";
+dotenv.config();
+
+// Server Configuration
+export const SERVER_CONFIG = {
+  PORT: process.env.PORT || 5000,
+  nodeEnv: process.env.NODE_ENV || "development",
+  BASE_URL: process.env.BASE_URL || "http://localhost:5000",
+};
+
+// Database Configuration
+export const DATABASE_CONFIG = {
+  url: process.env.DATABASE_URL,
+};
+
+// JWT Configuration
+export const JWT_CONFIG = {
+  secret: process.env.SESSION_SECRET,
+  expiresIn: "7d",
+};
+
+// SMTP Configuration
+export const SMTP_CONFIG = {
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT) || 587,
+  secure: process.env.SMTP_PORT === "465",
+  user: process.env.SMTP_USER,
+  pass: process.env.SMTP_PASS,
+  from: process.env.SMTP_USER,
+};
+
+// Cloudinary Configuration
+export const CLOUDINARY_CONFIG = {
+  cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+  apiKey: process.env.CLOUDINARY_API_KEY,
+  apiSecret: process.env.CLOUDINARY_API_SECRET,
+};
+
+// Razorpay Configuration
+export const RAZORPAY_CONFIG = {
+  keyId: process.env.RAZORPAY_ID_KEY,
+  keySecret: process.env.RAZORPAY_SECRET_KEY,
+};
+
+// Admin Configuration
+export const ADMIN_CONFIG = {
+  eventCleanupEmails: process.env.EVENT_CLEANUP_EMAILS?.split(",") || [],
+};
+
+// CORS Configuration
+export const CORS_CONFIG = {
+  allowedOrigins: process.env.CORS_ORIGINS?.split(",") || [
+    "http://localhost:5173",
+    "http://localhost:3000",
+  ],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  credentials: true,
+};
+
+// Validate required configuration
+export function validateConfig() {
+  const required = [
+    "DATABASE_URL",
+    "SESSION_SECRET",
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+    "RAZORPAY_ID_KEY",
+    "RAZORPAY_SECRET_KEY",
+  ];
+
+  const missing = required.filter((key) => !process.env[key]);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(", ")}`
+    );
+  }
+}
+```
+
+**Key Features:**
+
+- ✅ Centralized environment variable management
+- ✅ Configuration validation on startup
+- ✅ Grouped by feature/service
+- ✅ Default values for development
+- ✅ Type coercion (string → number for ports)
+- ✅ Array parsing for lists (emails, CORS origins)
+
+**Usage in Controllers:**
+
+```javascript
+import { SMTP_CONFIG, SERVER_CONFIG } from "../config/config.js";
+
+const transporter = nodemailer.createTransport({
+  host: SMTP_CONFIG.host,
+  port: SMTP_CONFIG.port,
+  secure: SMTP_CONFIG.secure,
+  auth: {
+    user: SMTP_CONFIG.user,
+    pass: SMTP_CONFIG.pass,
+  },
+});
+```
+
+**Best Practices:**
+
+- ✅ Import only what you need from config
+- ✅ Never access process.env directly in controllers
+- ✅ Call validateConfig() on server startup
+- ✅ Keep all environment variables in one place
+- ✅ Use semantic groupings (SMTP_CONFIG, JWT_CONFIG)
+
+---
 
 #### **db.js** - Database Connection
 
@@ -574,10 +700,10 @@ Automated tasks that run periodically using node-cron.
 
 **Purpose:** Auto-update event `live` status for past events
 
-**Schedule:** Every hour
+**Schedule:** Daily at 2:00 AM
 
 ```javascript
-cron.schedule("0 * * * *", () => {
+cron.schedule("0 2 * * *", () => {
   updateEventStatus();
 });
 ```
@@ -588,22 +714,38 @@ cron.schedule("0 * * * *", () => {
 UPDATE events
 SET live = false
 WHERE live = true
-AND start_date < CURRENT_DATE
+AND end_date < CURRENT_DATE
 ```
 
 ---
 
 #### **eventCleanupJob.js**
 
-**Purpose:** Archive past events and send admin notifications
+**Purpose:** Archive past events AND delete Cloudinary files ✨ UPDATED
 
 **Schedule:** Daily at 3:00 AM
 
 ```javascript
 cron.schedule("0 3 * * *", async () => {
-  await processExpiredEvents();
+  await cleanupEventData();
 });
 ```
+
+**Process:**
+
+1. Find events 30+ days past end date
+2. **Fetch event image_url and all aadhaar_image URLs**
+3. Delete database records (payments, registrations, user_details, teams, events)
+4. **Delete event image from Cloudinary** ✨ NEW
+5. **Delete all aadhaar images from Cloudinary** ✨ NEW
+6. Send admin notification email
+
+**Key Features:**
+
+- ✅ Non-blocking Cloudinary deletion
+- ✅ Comprehensive logging with emoji indicators
+- ✅ Handles both event images and aadhaar documents
+- ✅ Graceful error handling (continues if Cloudinary fails)
 
 ---
 
@@ -611,10 +753,10 @@ cron.schedule("0 3 * * *", async () => {
 
 **Purpose:** Archive expired class registrations
 
-**Schedule:** Daily at 4:00 AM
+**Schedule:** Daily at midnight (00:00)
 
 ```javascript
-cron.schedule("0 4 * * *", async () => {
+cron.schedule("0 0 * * *", async () => {
   await processExpiredClassRegistrations();
 });
 ```
@@ -626,15 +768,85 @@ cron.schedule("0 4 * * *", async () => {
 3. Delete from `class_registrations`
 4. Send admin notification email
 
+---
+
+#### **contactCleanupJob.js** ✨ NEW
+
+**Purpose:** Delete old contact form submissions
+
+**Schedule:** Daily at 4:00 AM
+
+```javascript
+cron.schedule("0 4 * * *", async () => {
+  await cleanupOldContactMessages();
+});
+```
+
+**Process:**
+
+1. Find contact messages older than **3 months**
+2. Delete messages permanently
+3. Send admin notification with summary
+
+**Retention Policy:** 3 months
+
+**Why:** Contact form submissions are informational and don't need long-term storage. Keeps database lean.
+
+---
+
+#### **paymentCleanupJob.js** ✨ NEW
+
+**Purpose:** Archive old failed/pending payments
+
+**Schedule:** Weekly on Sundays at 5:00 AM
+
+```javascript
+cron.schedule("0 5 * * 0", async () => {
+  await cleanupOldPayments();
+});
+```
+
+**Process:**
+
+1. Find payments with status `failed` or `pending` older than **60 days**
+2. Move to `payments_archive` table
+3. Delete from `payments` table
+4. Send admin notification with statistics
+
+**Retention Policy:** 60 days for failed/pending payments
+
+**Why:** Failed/pending payments clutter the main table. Archiving maintains audit trail while keeping active table clean.
+
+**Email Report Includes:**
+
+- Total archived count
+- Failed vs pending breakdown
+- Total amount
+- First 20 payment details
+
+---
+
+**Job Schedule Summary:**
+
+| Job             | Schedule              | Retention Policy         | Action                      |
+| --------------- | --------------------- | ------------------------ | --------------------------- |
+| Event Status    | Daily 2:00 AM         | N/A                      | Update live flag            |
+| Event Cleanup   | Daily 3:00 AM         | 30 days past end         | Delete + Cloudinary cleanup |
+| Class Cleanup   | Daily 00:00           | Expired registrations    | Archive                     |
+| Contact Cleanup | Daily 4:00 AM         | 3 months                 | Delete                      |
+| Payment Cleanup | Weekly Sunday 5:00 AM | 60 days (failed/pending) | Archive                     |
+
 **Best Practices:**
 
 - ✅ Use cron syntax correctly
 - ✅ Set appropriate timezone
-- ✅ Log job execution
+- ✅ Log job execution with timestamps
 - ✅ Send notifications on completion
 - ✅ Handle errors gracefully
-- ✅ Archive data before deletion
+- ✅ Archive data before deletion (for audit trail)
 - ✅ Test jobs in development mode
+- ✅ Delete external files (Cloudinary) non-blocking
+- ✅ Use emoji indicators for log clarity
 
 ---
 
@@ -642,16 +854,125 @@ cron.schedule("0 4 * * *", async () => {
 
 Small, reusable utility functions.
 
+#### **cloudinary.js** - Cloudinary Utilities ✨ NEW
+
+**Purpose:** Centralized Cloudinary configuration and operations
+
+```javascript
+import { v2 as cloudinary } from "cloudinary";
+import { CLOUDINARY_CONFIG } from "../config/config.js";
+
+cloudinary.config({
+  cloud_name: CLOUDINARY_CONFIG.cloudName,
+  api_key: CLOUDINARY_CONFIG.apiKey,
+  api_secret: CLOUDINARY_CONFIG.apiSecret,
+});
+
+export default cloudinary;
+
+// Helper functions
+export const uploadToCloudinary = async (filePath, folder) => {
+  return await cloudinary.uploader.upload(filePath, { folder });
+};
+
+export const deleteFromCloudinary = async (publicId) => {
+  return await cloudinary.uploader.destroy(publicId);
+};
+```
+
+**Usage:**
+
+```javascript
+import cloudinary from "../utils/cloudinary.js";
+
+// Upload image
+const result = await cloudinary.uploader.upload(file.path, {
+  folder: "events",
+});
+
+// Delete image
+await cloudinary.uploader.destroy(publicId, {
+  resource_type: "image",
+});
+```
+
+**Best Practices:**
+
+- ✅ One Cloudinary instance for entire app
+- ✅ Non-blocking deletion (use .then() for cleanup)
+- ✅ Extract publicId from URL using regex
+- ✅ Handle errors gracefully
+- ✅ Log all Cloudinary operations
+
+---
+
+#### **razorpay.js** - Razorpay Utilities ✨ NEW
+
+**Purpose:** Centralized Razorpay configuration and utilities
+
+```javascript
+import Razorpay from "razorpay";
+import crypto from "crypto";
+import { RAZORPAY_CONFIG } from "../config/config.js";
+
+const razorpayInstance = new Razorpay({
+  key_id: RAZORPAY_CONFIG.keyId,
+  key_secret: RAZORPAY_CONFIG.keySecret,
+});
+
+export default razorpayInstance;
+
+export const verifyRazorpaySignature = (orderId, paymentId, signature) => {
+  const body = orderId + "|" + paymentId;
+  const expectedSignature = crypto
+    .createHmac("sha256", RAZORPAY_CONFIG.keySecret)
+    .update(body.toString())
+    .digest("hex");
+  return expectedSignature === signature;
+};
+
+export const getRazorpayKeyId = () => RAZORPAY_CONFIG.keyId;
+```
+
+**Usage:**
+
+```javascript
+import razorpayInstance, {
+  verifyRazorpaySignature,
+} from "../utils/razorpay.js";
+
+// Create order
+const order = await razorpayInstance.orders.create(options);
+
+// Verify payment
+const isValid = verifyRazorpaySignature(orderId, paymentId, signature);
+```
+
+**Best Practices:**
+
+- ✅ One Razorpay instance for entire app
+- ✅ Centralize signature verification logic
+- ✅ Never expose secret key to frontend
+- ✅ Validate all payments server-side
+- ✅ Log payment verification results
+
+---
+
 #### **generateToken.js**
 
 **Purpose:** Create JWT tokens for authentication
 
 ```javascript
+import jwt from "jsonwebtoken";
+import { JWT_CONFIG } from "../config/config.js";
+
 const generateToken = (id, email, role) => {
-  return jwt.sign({ id, email, role }, process.env.SESSION_SECRET, {
-    expiresIn: "7d",
+  return jwt.sign({ id, email, role }, JWT_CONFIG.secret, {
+    expiresIn: JWT_CONFIG.expiresIn,
   });
 };
+
+export default generateToken;
 ```
 
 **Best Practices:**
@@ -661,6 +982,7 @@ const generateToken = (id, email, role) => {
 - ✅ Set reasonable expiration
 - ✅ Use strong secret key
 - ✅ Rotate secrets periodically
+- ✅ Use centralized JWT_CONFIG
 
 ---
 
@@ -1034,6 +1356,74 @@ Jobs not executing
 
 ---
 
-**Document Version:** 2.0  
-**Last Updated:** December 27, 2025  
+## 🎉 Recent Improvements (v2.1)
+
+**December 28, 2025:**
+
+### 🔧 Configuration Centralization
+
+- ✅ Created `config/config.js` - Single source of truth for environment variables
+- ✅ Eliminated 150+ lines of duplicate configuration code
+- ✅ Added configuration validation on startup
+- ✅ Organized config by feature (SERVER, DATABASE, JWT, SMTP, CLOUDINARY, RAZORPAY, ADMIN, CORS)
+
+### 🖼️ Cloudinary Utilities
+
+- ✅ Created `utils/cloudinary.js` - Centralized Cloudinary operations
+- ✅ Replaced 4 duplicate Cloudinary configs across controllers
+- ✅ Added helper functions: `uploadToCloudinary()`, `deleteFromCloudinary()`
+
+### 💳 Razorpay Utilities
+
+- ✅ Created `utils/razorpay.js` - Centralized payment utilities
+- ✅ Replaced 2 duplicate Razorpay configs
+- ✅ Centralized signature verification logic
+- ✅ Added `getRazorpayKeyId()` helper
+
+### 🗑️ New Cleanup Jobs
+
+- ✅ **contactCleanupJob.js** - Deletes contact messages older than 3 months
+
+  - Daily at 4:00 AM
+  - Sends admin summary emails
+  - Keeps database lean
+
+- ✅ **paymentCleanupJob.js** - Archives failed/pending payments older than 60 days
+  - Weekly on Sundays at 5:00 AM
+  - Creates `payments_archive` table automatically
+  - Sends detailed reports with statistics
+  - Maintains audit trail
+
+### ✨ Enhanced Event Cleanup
+
+- ✅ Updated `eventCleanupJob.js` to delete Cloudinary files
+- ✅ Deletes event images from Cloudinary
+- ✅ Deletes aadhaar images from Cloudinary
+- ✅ Non-blocking deletion (doesn't fail job if Cloudinary unavailable)
+- ✅ Comprehensive logging with emoji indicators
+
+### 🎨 Gallery Improvements
+
+- ✅ Updated gallery DELETE endpoint to use centralized utilities
+- ✅ Non-blocking Cloudinary cleanup
+- ✅ Better error handling and logging
+
+### 📧 All Jobs Send Email Notifications
+
+- ✅ Detailed HTML email templates
+- ✅ Summary statistics
+- ✅ Error notifications
+- ✅ Environment indicators (production/development)
+
+### 📝 Code Quality
+
+- ✅ Updated 18+ backend files to use centralized config
+- ✅ Eliminated duplicate SMTP configs (3 instances)
+- ✅ Consistent error handling across all jobs
+- ✅ Environment-aware job execution (dev mode runs immediately)
+
+---
+
+**Document Version:** 2.1  
+**Last Updated:** December 28, 2025  
 **Maintained by:** Development Team

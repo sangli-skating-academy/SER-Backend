@@ -1,14 +1,7 @@
 import pool from "../config/db.js";
-import { v2 as cloudinary } from "cloudinary";
+import cloudinary from "../utils/cloudinary.js";
 import fs from "fs";
 import path from "path";
-
-// Cloudinary config
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
 // Get user_details for a registration (by registrationId)
 export const getUserDetailsByRegistration = async (req, res) => {
   const { registrationId } = req.params;

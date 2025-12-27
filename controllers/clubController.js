@@ -1,21 +1,9 @@
-import Razorpay from "razorpay";
-import crypto from "crypto";
-import dotenv from "dotenv";
 import pool from "../config/db.js";
+import razorpay, { verifyRazorpaySignature } from "../utils/razorpay.js";
 import {
   sendClubRegistrationSuccessEmail,
   sendClubRegistrationAdminNotification,
 } from "../services/emailService.js";
-
-dotenv.config();
-
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_ID_KEY;
-const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_SECRET_KEY;
-
-const razorpay = new Razorpay({
-  key_id: RAZORPAY_KEY_ID,
-  key_secret: RAZORPAY_KEY_SECRET,
-});
 
 // Create Razorpay order for club/class registration
 export const createClubOrder = async (req, res) => {
@@ -54,10 +42,15 @@ export const verifyClubPayment = async (req, res) => {
       .status(400)
       .json({ success: false, error: "Missing or invalid registrationId" });
   }
-  const hmac = crypto.createHmac("sha256", RAZORPAY_KEY_SECRET);
-  hmac.update(razorpay_order_id + "|" + razorpay_payment_id);
-  const generatedSignature = hmac.digest("hex");
-  if (generatedSignature === razorpay_signature) {
+
+  // Verify payment signature using centralized function
+  const isValid = verifyRazorpaySignature(
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature
+  );
+
+  if (isValid) {
     try {
       // Fetch the registration row with all details
       const regResult = await pool.query(
@@ -183,46 +176,12 @@ export const registerForClass = async (req, res) => {
 
     const registrationData = result.rows[0];
 
-    // Send emails if status is 'success' and payment details exist
-    if ((status === "success" || !status) && razorpay_payment_id) {
-      try {
-        const emailData = {
-          email,
-          full_name,
-          phone_number,
-          amount,
-          issue_date,
-          end_date,
-          razorpay_payment_id,
-          age,
-          gender,
-        };
-
-        // Send success email to student
-        const emailResult = await sendClubRegistrationSuccessEmail(emailData);
-        if (emailResult.success) {
-          console.log(`✅ Registration success email sent to: ${email}`);
-        }
-
-        // Send admin notification
-        const adminNotification = await sendClubRegistrationAdminNotification(
-          emailData
-        );
-        if (adminNotification.success) {
-          console.log(`✅ Admin notification sent for: ${full_name}`);
-        }
-      } catch (emailError) {
-        console.error(
-          "❌ Email sending error in registerForClass:",
-          emailError
-        );
-        // Don't fail the registration due to email issues
-      }
-    }
+    // DON'T send emails here - wait for payment verification
+    // Emails will be sent in verifyClubPayment() after successful payment
 
     res.status(201).json({
       registration: registrationData,
-      message: "Registration successful! Confirmation emails sent.",
+      message: "Registration created. Please complete payment.",
     });
   } catch (err) {
     res.status(500).json({ error: "Database error", details: err.message });

@@ -1,15 +1,16 @@
 import cron from "node-cron";
 import nodemailer from "nodemailer";
 import pool from "../config/db.js";
+import { SMTP_CONFIG, ADMIN_CONFIG, SERVER_CONFIG } from "../config/config.js";
 
 // Email configuration
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: process.env.SMTP_PORT || 587,
-  secure: false,
+  host: SMTP_CONFIG.host,
+  port: SMTP_CONFIG.port,
+  secure: SMTP_CONFIG.secure,
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: SMTP_CONFIG.user,
+    pass: SMTP_CONFIG.pass,
   },
 });
 
@@ -128,14 +129,12 @@ async function archiveClassRegistration(registration) {
 
 // Send cleanup notification email
 async function sendClassCleanupNotification(expiredRegistrations) {
-  if (!process.env.EVENT_CLEANUP_EMAILS) {
+  if (!ADMIN_CONFIG.eventCleanupEmails.length) {
     console.log("⚠️ No admin email configured for class cleanup notifications");
     return;
   }
 
-  const adminEmails = process.env.EVENT_CLEANUP_EMAILS.split(",").map((email) =>
-    email.trim()
-  );
+  const adminEmails = ADMIN_CONFIG.eventCleanupEmails;
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -228,7 +227,7 @@ async function sendClassCleanupNotification(expiredRegistrations) {
   const mailOptions = {
     from: {
       name: "Sangli Skating Academy - System",
-      address: process.env.SMTP_USER,
+      address: SMTP_CONFIG.user,
     },
     to: adminEmails,
     subject: `🗄️ Class Registration Cleanup Report - ${expiredRegistrations.length} registrations processed`,
@@ -251,16 +250,14 @@ async function sendClassCleanupNotification(expiredRegistrations) {
 
 // Send error notification email
 async function sendErrorNotification(error, registrationCount) {
-  if (!process.env.EVENT_CLEANUP_EMAILS) return;
+  if (!ADMIN_CONFIG.eventCleanupEmails.length) return;
 
-  const adminEmails = process.env.EVENT_CLEANUP_EMAILS.split(",").map((email) =>
-    email.trim()
-  );
+  const adminEmails = ADMIN_CONFIG.eventCleanupEmails;
 
   const mailOptions = {
     from: {
       name: "Sangli Skating Academy - System Alert",
-      address: process.env.SMTP_USER,
+      address: SMTP_CONFIG.user,
     },
     to: adminEmails,
     subject: "🚨 Class Registration Cleanup Job Failed",
@@ -300,7 +297,7 @@ export function scheduleClassRegistrationCleanup() {
   });
 
   // For development/testing - run immediately if NODE_ENV is development
-  if (process.env.NODE_ENV === "development") {
+  if (SERVER_CONFIG.NODE_ENV === "development") {
     console.log(
       "🧪 Development mode: Running class registration cleanup immediately for testing"
     );

@@ -1,27 +1,23 @@
 import nodemailer from "nodemailer";
-import dotenv from "dotenv";
-
-// Load environment variables
-dotenv.config();
+import { SMTP_CONFIG, SERVER_CONFIG } from "../config/config.js";
 
 // Email configuration
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT) || 587,
-  secure: false, // true for 465, false for other ports
+  host: SMTP_CONFIG.host,
+  port: SMTP_CONFIG.port,
+  secure: SMTP_CONFIG.secure, // true for 465, false for other ports
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: SMTP_CONFIG.user,
+    pass: SMTP_CONFIG.pass,
   },
   tls: {
-    rejectUnauthorized: false, // Accept self-signed certificates (for development)
-    ciphers: "SSLv3", // Support legacy SSL
+    rejectUnauthorized: true,
   },
   connectionTimeout: 20000, // 20 seconds timeout
   greetingTimeout: 10000,
   socketTimeout: 10000,
-  debug: process.env.NODE_ENV === "development", // Enable debug in development
-  logger: process.env.NODE_ENV === "development", // Enable logging in development
+  debug: SERVER_CONFIG.NODE_ENV === "development", // Enable debug in development
+  logger: SERVER_CONFIG.NODE_ENV === "development", // Enable logging in development
 });
 
 // Verify email connection on startup (non-blocking)
@@ -38,8 +34,6 @@ const transporter = nodemailer.createTransport({
     console.log("✅ Email service is ready");
   } catch (error) {
     console.error("❌ Email service failed:", error.message);
-    console.warn("⚠️  Server will continue but emails may not work");
-    console.warn("⚠️  Check SMTP credentials and network connectivity");
   }
 })();
 
@@ -276,7 +270,7 @@ export const sendWelcomeEmail = async (userDetails) => {
   const mailOptions = {
     from: {
       name: "Sangli Skating Academy",
-      address: process.env.SMTP_USER,
+      address: SMTP_CONFIG.user,
     },
     to: email,
     subject: "🛼 Welcome to Sangli Skating Academy - Let's Start Skating! 🛼",
@@ -792,7 +786,7 @@ export const sendRegistrationConfirmationEmail = async (
   const mailOptions = {
     from: {
       name: "Sangli Skating Academy",
-      address: process.env.SMTP_USER,
+      address: SMTP_CONFIG.user,
     },
     to: userEmail,
     subject: `🎉 Registration Confirmed & Payment Received: ${eventName} - Sangli Skating Academy`,
@@ -1181,7 +1175,7 @@ This is an automated email. Please do not reply.
 
     // Email options
     const mailOptions = {
-      from: `"Sangli Skating Academy" <${process.env.SMTP_USER}>`,
+      from: `"Sangli Skating Academy" <${SMTP_CONFIG.user}>`,
       to: email,
       subject: `🎉 Registration Confirmed - Welcome to Sangli Skating Academy!`,
       text: textContent,
@@ -1357,7 +1351,7 @@ export const sendClubRegistrationAdminNotification = async (
     // Send to all admin emails
     const emailPromises = adminEmails.map((adminEmail) => {
       const mailOptions = {
-        from: `"Sangli Skating Academy - System" <${process.env.SMTP_USER}>`,
+        from: `"Sangli Skating Academy - System" <${SMTP_CONFIG.user}>`,
         to: adminEmail,
         subject: `🆕 New Registration: ${full_name} - ₹${amount} PAID`,
         html: htmlContent,
@@ -1384,9 +1378,261 @@ export const sendClubRegistrationAdminNotification = async (
   }
 };
 
+// Send admin notification for new event registration
+export const sendEventRegistrationAdminNotification = async (
+  registrationData
+) => {
+  try {
+    console.log(
+      "📧 Attempting to send event registration admin notification..."
+    );
+
+    // Check if admin emails are configured
+    if (!process.env.ADMIN_NOTIFICATION_EMAILS) {
+      console.log(
+        "⚠️ No admin notification emails configured for event registration"
+      );
+      return { success: false, error: "No admin emails configured" };
+    }
+
+    const adminEmails = process.env.ADMIN_NOTIFICATION_EMAILS.split(",").map(
+      (email) => email.trim()
+    );
+
+    console.log(`📧 Admin emails configured: ${adminEmails.join(", ")}`);
+
+    const {
+      userName,
+      userEmail,
+      userPhone,
+      eventName,
+      eventStartDate,
+      eventLocation,
+      registrationType,
+      teamName,
+      teamMembers,
+      paymentAmount,
+      paymentId,
+      orderId,
+      registrationDate,
+      userEventCategory,
+    } = registrationData;
+
+    // Format dates
+    const formatDate = (date) => {
+      if (!date) return "N/A";
+      return new Date(date).toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+
+    const eventDateFormatted = formatDate(eventStartDate);
+    const registrationTime = formatDate(registrationDate || new Date());
+
+    // Parse team members if it's a team registration
+    let teamMembersHTML = "";
+    if (registrationType === "team" && teamMembers && teamMembers.length > 0) {
+      teamMembersHTML = `
+        <tr>
+          <td colspan="2" style="background: #fff3cd; padding: 15px;">
+            <h4 style="margin-top: 0;">👥 Team Members (${
+              teamMembers.length
+            }):</h4>
+            <ul style="margin: 0; padding-left: 20px;">
+              ${teamMembers
+                .map(
+                  (member, idx) => `
+                <li>
+                  <strong>${
+                    member.full_name ||
+                    member.first_name + " " + member.last_name ||
+                    "Member " + (idx + 1)
+                  }</strong>
+                  ${member.email ? `<br>📧 ${member.email}` : ""}
+                  ${member.phone ? `<br>📱 ${member.phone}` : ""}
+                </li>
+              `
+                )
+                .join("")}
+            </ul>
+          </td>
+        </tr>
+      `;
+    }
+
+    // Parse user event categories
+    let categoriesHTML = "";
+    if (userEventCategory && userEventCategory.length > 0) {
+      const categories = Array.isArray(userEventCategory)
+        ? userEventCategory.join(", ")
+        : userEventCategory;
+      categoriesHTML = `
+        <tr>
+          <td>Selected Categories</td>
+          <td><strong>${categories}</strong></td>
+        </tr>
+      `;
+    }
+
+    // HTML email for admin
+    const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .header { background: #007bff; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; }
+        .alert-badge { background: #28a745; color: white; padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: bold; }
+        .detail-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .detail-table td { padding: 12px; border: 1px solid #ddd; }
+        .detail-table td:first-child { background: #f8f9fa; font-weight: bold; width: 40%; }
+        .amount-highlight { color: #28a745; font-weight: bold; font-size: 18px; }
+        .event-highlight { background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #007bff; }
+        .footer { background: #6c757d; color: white; padding: 15px; text-align: center; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🎉 New Event Registration Alert</h1>
+          <span class="alert-badge">PAYMENT SUCCESSFUL</span>
+          <p>A participant has successfully registered and paid for an event!</p>
+        </div>
+        
+        <div class="content">
+          <div class="event-highlight">
+            <h2 style="margin-top: 0; color: #007bff;">🏆 ${eventName}</h2>
+            <p style="margin-bottom: 0;">
+              📍 ${eventLocation || "Location TBA"}<br>
+              📅 ${eventDateFormatted}
+            </p>
+          </div>
+
+          <h3>Participant Details:</h3>
+          
+          <table class="detail-table">
+            <tr>
+              <td>Registration Type</td>
+              <td><strong style="text-transform: uppercase;">${registrationType}</strong></td>
+            </tr>
+            ${
+              teamName
+                ? `
+            <tr>
+              <td>Team Name</td>
+              <td><strong>${teamName}</strong></td>
+            </tr>
+            `
+                : ""
+            }
+            <tr>
+              <td>${
+                registrationType === "team"
+                  ? "Team Captain"
+                  : "Participant Name"
+              }</td>
+              <td><strong>${userName}</strong></td>
+            </tr>
+            <tr>
+              <td>Email Address</td>
+              <td>${userEmail}</td>
+            </tr>
+            ${
+              userPhone
+                ? `
+            <tr>
+              <td>Phone Number</td>
+              <td>${userPhone}</td>
+            </tr>
+            `
+                : ""
+            }
+            ${categoriesHTML}
+            ${teamMembersHTML}
+            <tr>
+              <td>Amount Paid</td>
+              <td class="amount-highlight">₹${paymentAmount}</td>
+            </tr>
+            <tr>
+              <td>Payment ID</td>
+              <td style="font-family: monospace; font-size: 12px;">${paymentId}</td>
+            </tr>
+            <tr>
+              <td>Order ID</td>
+              <td style="font-family: monospace; font-size: 12px;">${orderId}</td>
+            </tr>
+            <tr>
+              <td>Registration Time</td>
+              <td>${registrationTime}</td>
+            </tr>
+          </table>
+          
+          <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0;">
+            <h4 style="margin-top: 0; color: #155724;">✅ Registration Status:</h4>
+            <p style="margin-bottom: 0; color: #155724;">
+              <strong>Payment Status:</strong> Confirmed & Paid<br>
+              <strong>Registration Status:</strong> Active<br>
+              <strong>Confirmation Email:</strong> Sent to participant
+            </p>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <p><strong>Sangli Skating Academy</strong> - Admin Notification System</p>
+          <p>This is an automated notification. Check the admin dashboard for complete event details.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+    `;
+
+    // Send to all admin emails
+    const emailPromises = adminEmails.map((adminEmail) => {
+      const mailOptions = {
+        from: `"Sangli Skating Academy - System" <${SMTP_CONFIG.user}>`,
+        to: adminEmail,
+        subject: `🎉 New Event Registration: ${userName} - ${eventName} - ₹${paymentAmount} PAID`,
+        html: htmlContent,
+      };
+
+      return transporter.sendMail(mailOptions);
+    });
+
+    await Promise.all(emailPromises);
+    console.log(
+      `✅ Event registration admin notification sent to: ${adminEmails.join(
+        ", "
+      )}`
+    );
+
+    return {
+      success: true,
+      recipients: adminEmails,
+    };
+  } catch (error) {
+    console.error(
+      "❌ Failed to send event registration admin notification:",
+      error.message
+    );
+    console.error("Full error details:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
 export default {
   sendWelcomeEmail,
   sendRegistrationConfirmationEmail,
   sendClubRegistrationSuccessEmail,
   sendClubRegistrationAdminNotification,
+  sendEventRegistrationAdminNotification,
 };

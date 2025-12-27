@@ -3,15 +3,17 @@ import nodemailer from "nodemailer";
 import fs from "fs/promises";
 import path from "path";
 import pool from "../config/db.js";
+import cloudinary from "../utils/cloudinary.js";
+import { SMTP_CONFIG, ADMIN_CONFIG, SERVER_CONFIG } from "../config/config.js";
 
 // Email configuration
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: process.env.SMTP_PORT || 587,
-  secure: false,
+  host: SMTP_CONFIG.host,
+  port: SMTP_CONFIG.port,
+  secure: SMTP_CONFIG.secure,
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: SMTP_CONFIG.user,
+    pass: SMTP_CONFIG.pass,
   },
 });
 
@@ -201,7 +203,7 @@ async function sendEventDataEmail(eventData, csvData, recipients) {
   )}_${new Date().toISOString().slice(0, 10)}.csv`;
 
   const mailOptions = {
-    from: process.env.SMTP_USER,
+    from: SMTP_CONFIG.user,
     to: recipients.join(", "),
     subject: `Event Data Export - ${eventData.title} (${eventData.start_date})`,
     html: `
@@ -236,6 +238,30 @@ async function sendEventDataEmail(eventData, csvData, recipients) {
   }
 }
 
+// Helper function to delete Cloudinary image
+async function deleteCloudinaryImage(imageUrl) {
+  if (!imageUrl || !imageUrl.startsWith("http")) return;
+
+  try {
+    // Extract public_id from Cloudinary URL
+    // Format: https://res.cloudinary.com/{cloud_name}/image/upload/{version}/{folder}/{public_id}.{ext}
+    const matches = imageUrl.match(/\/([^\/]+\/[^\.]+)\.[^.]+$/);
+    if (matches && matches[1]) {
+      const publicId = matches[1];
+      await cloudinary.uploader.destroy(publicId, {
+        resource_type: "image",
+      });
+      console.log(`✅ Deleted Cloudinary image: ${publicId}`);
+    }
+  } catch (error) {
+    console.error(
+      `⚠️ Error deleting Cloudinary image ${imageUrl}:`,
+      error.message
+    );
+    // Don't throw - continue with cleanup even if image deletion fails
+  }
+}
+
 // Function to clean up event data from database
 async function cleanupEventData(eventId) {
   const client = await pool.connect();
@@ -243,33 +269,77 @@ async function cleanupEventData(eventId) {
   try {
     await client.query("BEGIN");
 
+    // 1. Get event image URL before deletion
+    const eventResult = await client.query(
+      "SELECT image_url FROM events WHERE id = $1",
+      [eventId]
+    );
+    const eventImageUrl = eventResult.rows[0]?.image_url;
+
+    // 2. Get all aadhaar images from user_details for this event
+    const aadhaarResult = await client.query(
+      "SELECT aadhaar_image FROM user_details WHERE event_id = $1 AND aadhaar_image IS NOT NULL",
+      [eventId]
+    );
+    const aadhaarImages = aadhaarResult.rows.map((row) => row.aadhaar_image);
+
+    console.log(
+      `Found ${aadhaarImages.length} aadhaar images to clean up for event ${eventId}`
+    );
+
     // Delete in correct order to respect foreign key constraints
 
-    // 1. Delete payments
+    // 3. Delete payments
     await client.query(
       "DELETE FROM payments WHERE registration_id IN (SELECT id FROM registrations WHERE event_id = $1)",
       [eventId]
     );
 
-    // 2. Delete registrations
+    // 4. Delete registrations
     await client.query("DELETE FROM registrations WHERE event_id = $1", [
       eventId,
     ]);
 
-    // 3. Delete user_details for this event
+    // 5. Delete user_details for this event
     await client.query("DELETE FROM user_details WHERE event_id = $1", [
       eventId,
     ]);
 
-    // 4. Delete teams for this event
+    // 6. Delete teams for this event
     await client.query("DELETE FROM teams WHERE event_id = $1", [eventId]);
 
+    // 7. Delete the event itself
+    await client.query("DELETE FROM events WHERE id = $1", [eventId]);
+
     await client.query("COMMIT");
-    console.log(`Successfully cleaned up all data for event ID: ${eventId}`);
+    console.log(
+      `✅ Successfully cleaned up database records for event ID: ${eventId}`
+    );
+
+    // After successful database cleanup, delete Cloudinary images
+    // Do this outside transaction to avoid blocking if Cloudinary is slow
+
+    // Delete event image
+    if (eventImageUrl) {
+      console.log(`🗑️ Deleting event image from Cloudinary...`);
+      await deleteCloudinaryImage(eventImageUrl);
+    }
+
+    // Delete all aadhaar images
+    if (aadhaarImages.length > 0) {
+      console.log(
+        `🗑️ Deleting ${aadhaarImages.length} aadhaar images from Cloudinary...`
+      );
+      for (const aadhaarImage of aadhaarImages) {
+        await deleteCloudinaryImage(aadhaarImage);
+      }
+    }
+
+    console.log(`✅ Cloudinary cleanup completed for event ID: ${eventId}`);
   } catch (error) {
     await client.query("ROLLBACK");
     console.error(
-      `Error cleaning up event data for event ID ${eventId}:`,
+      `❌ Error cleaning up event data for event ID ${eventId}:`,
       error
     );
     throw error;
@@ -291,9 +361,9 @@ async function processEventsForCleanup() {
       return;
     }
 
-    // Get email recipients from environment or use defaults
-    const recipients = process.env.EVENT_CLEANUP_EMAILS
-      ? process.env.EVENT_CLEANUP_EMAILS.split(",").map((email) => email.trim())
+    // Get email recipients from centralized config
+    const recipients = ADMIN_CONFIG.eventCleanupEmails.length
+      ? ADMIN_CONFIG.eventCleanupEmails
       : ["admin@example.com"]; // Default email
 
     for (const event of eventsForCleanup) {

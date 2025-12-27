@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import pool from "../config/db.js";
+import { SERVER_CONFIG } from "../config/config.js";
 
 // Function to update live status for ended events
 async function updateEventStatus() {
@@ -77,7 +78,7 @@ const scheduleEventStatusUpdate = () => {
   );
 
   // Optional: Run immediately on startup for testing (remove in production)
-  if (process.env.NODE_ENV === "development") {
+  if (SERVER_CONFIG.NODE_ENV === "development") {
     console.log(
       "Development mode: Running event status update immediately for testing..."
     );

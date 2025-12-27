@@ -1,10 +1,10 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import path from "path";
 import helmet from "helmet";
 import morgan from "morgan";
+import { SERVER_CONFIG, CORS_CONFIG, validateConfig } from "./config/config.js";
 
 import userRoutes from "./routes/userRoutes.js";
 import eventRoutes from "./routes/eventRoutes.js";
@@ -33,11 +33,14 @@ import errorHandler from "./middleware/errorHandler.js";
 import { scheduleEventStatusUpdate } from "./jobs/eventStatusJob.js";
 import { scheduleEventCleanup } from "./jobs/eventCleanupJob.js";
 import { scheduleClassRegistrationCleanup } from "./jobs/classRegistrationCleanupJob.js";
+import scheduleContactCleanup from "./jobs/contactCleanupJob.js";
+import schedulePaymentCleanup from "./jobs/paymentCleanupJob.js";
 
-dotenv.config();
+// Validate required environment variables
+validateConfig();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = SERVER_CONFIG.PORT;
 
 // Security & Logging Middlewares
 app.use(helmet());
@@ -52,18 +55,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middlewares
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://www.sangliskating.com",
-  "https://ser-frontend-livid.vercel.app",
-];
-
 app.use(
   cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST", "PATCH", "DELETE"],
-    credentials: true,
+    origin: CORS_CONFIG.allowedOrigins,
+    methods: CORS_CONFIG.methods,
+    credentials: CORS_CONFIG.credentials,
   })
 );
 
@@ -148,4 +144,10 @@ app.listen(PORT, () => {
 
   scheduleClassRegistrationCleanup();
   console.log("Class registration cleanup job scheduled successfully");
+
+  scheduleContactCleanup();
+  console.log("Contact messages cleanup job scheduled successfully");
+
+  schedulePaymentCleanup();
+  console.log("Payment cleanup job scheduled successfully");
 });
