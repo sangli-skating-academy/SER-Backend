@@ -53,7 +53,11 @@ export const ADMIN_CONFIG = {
 export const CORS_CONFIG = {
   allowedOrigins: process.env.CORS_ORIGINS
     ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
-    : ["http://localhost:5173"],
+    : [
+        "http://localhost:5173",
+        "www.sangliskating.com",
+        "https://sangliskating.com",
+      ],
   methods: ["GET", "POST", "PATCH", "DELETE"],
   credentials: true,
 };
