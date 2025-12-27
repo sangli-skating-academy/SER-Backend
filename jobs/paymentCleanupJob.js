@@ -4,7 +4,7 @@ import pool from "../config/db.js";
 import { SMTP_CONFIG, ADMIN_CONFIG, SERVER_CONFIG } from "../config/config.js";
 
 // Email configuration
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   host: SMTP_CONFIG.host,
   port: SMTP_CONFIG.port,
   secure: SMTP_CONFIG.secure,
