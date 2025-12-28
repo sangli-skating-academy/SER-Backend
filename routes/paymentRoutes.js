@@ -6,11 +6,13 @@ import {
   getPaymentById,
   getPaymentByRegistrationId,
 } from "../controllers/paymentController.js";
+import { paymentLimiter } from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 
 // Create Razorpay order
-router.post("/order", createOrder);
+// Apply rate limiting to prevent payment abuse (10 per hour)
+router.post("/order", paymentLimiter, createOrder);
 
 // Verify payment
 router.post("/verify", verifyPayment);

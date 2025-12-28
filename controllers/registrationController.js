@@ -1,7 +1,7 @@
 // Controller for event registration (individual/team)
 import pool from "../config/db.js";
 import cloudinary from "../utils/cloudinary.js";
-import { sendRegistrationConfirmationEmail } from "../services/emailService.js";
+import { sendRegistrationConfirmationEmail } from "../services/emailServiceWithQueue.js";
 import path from "path";
 import fs from "fs";
 

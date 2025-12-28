@@ -1,7 +1,7 @@
 import pool from "../config/db.js";
 import bcrypt from "bcryptjs";
 import generateToken from "../utils/generateToken.js";
-import { sendWelcomeEmail } from "../services/emailService.js";
+import { sendWelcomeEmail } from "../services/emailServiceWithQueue.js";
 
 // Register a new user
 export const registerUser = async (req, res, next) => {

@@ -5,14 +5,20 @@ import {
   verifyClubPayment,
   getUserMemberships,
 } from "../controllers/clubController.js";
+import {
+  paymentLimiter,
+  registrationLimiter,
+} from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 
 // POST /api/club/register - Register for a class
-router.post("/register", registerForClass);
+// Apply rate limiting to prevent spam registrations (5 per hour)
+router.post("/register", registrationLimiter, registerForClass);
 
 // POST /api/club/order - Create Razorpay order for club/class registration
-router.post("/order", createClubOrder);
+// Apply rate limiting to prevent payment abuse (10 per hour)
+router.post("/order", paymentLimiter, createClubOrder);
 
 // POST /api/club/verify - Verify Razorpay payment for club/class registration
 router.post("/verify", verifyClubPayment);

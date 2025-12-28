@@ -28,6 +28,8 @@ import adminEventCleanupRoutes from "./routes/admin/eventCleanup.js";
 import adminClassCleanupRoutes from "./routes/admin/classCleanup.js";
 
 import errorHandler from "./middleware/errorHandler.js";
+import healthCheck from "./routes/healthRoute.js";
+import { generalLimiter } from "./middleware/rateLimiter.js";
 
 // Import and start scheduled jobs
 import { scheduleEventStatusUpdate } from "./jobs/eventStatusJob.js";
@@ -35,6 +37,10 @@ import { scheduleEventCleanup } from "./jobs/eventCleanupJob.js";
 import { scheduleClassRegistrationCleanup } from "./jobs/classRegistrationCleanupJob.js";
 import scheduleContactCleanup from "./jobs/contactCleanupJob.js";
 import schedulePaymentCleanup from "./jobs/paymentCleanupJob.js";
+
+// Import email queue services
+import { initializeEmailQueue, stopEmailQueue } from "./services/emailQueue.js";
+import { startEmailWorker } from "./jobs/emailWorker.js";
 
 // Validate required environment variables
 validateConfig();
@@ -50,7 +56,17 @@ app.use(morgan("dev"));
 app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' https://ser-frontend-livid.vercel.app data:; base-uri 'self'; font-src 'self' https: data:; form-action 'self'; frame-ancestors 'self'; object-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self' https: 'unsafe-inline'; upgrade-insecure-requests"
+    "default-src 'self'; " +
+      "img-src 'self' https://res.cloudinary.com data:; " +
+      "base-uri 'self'; " +
+      "font-src 'self' https: data:; " +
+      "form-action 'self'; " +
+      "frame-ancestors 'self'; " +
+      "object-src 'none'; " +
+      "script-src 'self'; " +
+      "script-src-attr 'none'; " +
+      "style-src 'self' https: 'unsafe-inline'; " +
+      "upgrade-insecure-requests"
   );
   next();
 });
@@ -66,6 +82,10 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
+
+// Rate Limiting - Apply to all API routes
+// Protects against brute force, spam, and DDoS attacks
+app.use("/api/", generalLimiter);
 
 // Public gallery images (non-sensitive) with CORP header
 app.use(
@@ -89,18 +109,8 @@ app.use(
 app.get("/", (req, res) => {
   res.send("Sport event registration Backend Running! 🛡️");
 });
-
-// Health check endpoint for keep-alive
-app.get("/health", (req, res) => {
-  const timestamp = new Date().toISOString();
-  res.status(200).json({
-    status: "healthy",
-    message: "Backend is running",
-    timestamp,
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || "development",
-  });
-});
+// Health check routes
+app.use("/api", healthCheck);
 
 // API Routes
 // All user routes are protected by auth middleware
@@ -132,22 +142,53 @@ app.use((req, res, next) => {
 });
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Initialize email queue and worker before starting server
+async function startServer() {
+  try {
+    // Initialize email queue
+    await initializeEmailQueue();
 
-  // Start scheduled jobs
-  scheduleEventStatusUpdate();
-  console.log("Event status update job scheduled successfully");
+    // Start email worker
+    await startEmailWorker();
 
-  scheduleEventCleanup();
-  console.log("Event cleanup job scheduled successfully");
+    // Start HTTP server
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
 
-  scheduleClassRegistrationCleanup();
-  console.log("Class registration cleanup job scheduled successfully");
+      // Start scheduled jobs
+      scheduleEventStatusUpdate();
+      console.log("Event status update job scheduled successfully");
 
-  scheduleContactCleanup();
-  console.log("Contact messages cleanup job scheduled successfully");
+      scheduleEventCleanup();
+      console.log("Event cleanup job scheduled successfully");
 
-  schedulePaymentCleanup();
-  console.log("Payment cleanup job scheduled successfully");
+      scheduleClassRegistrationCleanup();
+      console.log("Class registration cleanup job scheduled successfully");
+
+      scheduleContactCleanup();
+      console.log("Contact messages cleanup job scheduled successfully");
+
+      schedulePaymentCleanup();
+      console.log("Payment cleanup job scheduled successfully");
+    });
+  } catch (error) {
+    console.error("❌ Failed to start server:", error);
+    process.exit(1);
+  }
+}
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  console.log("SIGTERM signal received: closing HTTP server");
+  await stopEmailQueue();
+  process.exit(0);
 });
+
+process.on("SIGINT", async () => {
+  console.log("SIGINT signal received: closing HTTP server");
+  await stopEmailQueue();
+  process.exit(0);
+});
+
+// Start the server
+startServer();

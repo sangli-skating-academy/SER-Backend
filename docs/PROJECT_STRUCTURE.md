@@ -1,6 +1,6 @@
 # 🏗️ Backend Architecture & Developer Guide
 
-**Version:** 2.1  
+**Version:** 3.0  
 **Last Updated:** December 28, 2025  
 **Project:** Sangli Skating Academy - Event Registration System
 
@@ -10,12 +10,16 @@
 
 1. [Overview](#overview)
 2. [Architecture Philosophy](#architecture-philosophy)
-3. [Folder Structure](#folder-structure)
-4. [Core Components](#core-components)
-5. [Best Practices](#best-practices)
-6. [Getting Started](#getting-started)
-7. [Common Patterns](#common-patterns)
-8. [Troubleshooting](#troubleshooting)
+3. [System Architecture Diagrams](#system-architecture-diagrams)
+4. [Folder Structure](#folder-structure)
+5. [Core Components](#core-components)
+6. [Request Flow Diagrams](#request-flow-diagrams)
+7. [Email Queue System](#email-queue-system)
+8. [Rate Limiting System](#rate-limiting-system)
+9. [Best Practices](#best-practices)
+10. [Getting Started](#getting-started)
+11. [Common Patterns](#common-patterns)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -32,6 +36,8 @@ This is a **production-grade Node.js/Express backend** for a sports event regist
 - **File Storage:** Cloudinary (images)
 - **Payment Gateway:** Razorpay
 - **Email Service:** Nodemailer (SMTP)
+- **Email Queue:** pg-boss (PostgreSQL-based)
+- **Rate Limiting:** express-rate-limit
 - **Job Scheduler:** node-cron
 - **Security:** Helmet.js, CORS, bcryptjs
 
@@ -62,6 +68,7 @@ Each layer has a **single responsibility**:
 
 - JWT-based authentication
 - Role-based access control (RBAC)
+- Rate limiting (6 different limiters)
 - SQL injection prevention (parameterized queries)
 - XSS protection (Helmet.js)
 - CORS configuration
@@ -70,9 +77,111 @@ Each layer has a **single responsibility**:
 ### 4. **Scalability**
 
 - Connection pooling for database
+- Asynchronous email queue
 - Scheduled jobs for maintenance
 - Modular code structure
 - Environment-based configuration
+
+---
+
+## 📊 System Architecture Diagrams
+
+### High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLIENT (React)                           │
+│                    http://localhost:5173                         │
+└────────────────────┬────────────────────────────────────────────┘
+                     │ HTTP/HTTPS Requests
+                     ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                      EXPRESS SERVER                              │
+│                    Port 3000/5000                                │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Security Layer (Helmet, CORS, Rate Limiting)             │  │
+│  └─────────────────────┬─────────────────────────────────────┘  │
+│                        ↓                                         │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Authentication Middleware (JWT)                          │  │
+│  └─────────────────────┬─────────────────────────────────────┘  │
+│                        ↓                                         │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Routes (User, Event, Payment, Admin, etc.)               │  │
+│  └─────────────────────┬─────────────────────────────────────┘  │
+│                        ↓                                         │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Controllers (Business Logic)                             │  │
+│  └─────────────────────┬─────────────────────────────────────┘  │
+│                        ↓                                         │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Services (Email Queue, Payment, Utils)                   │  │
+│  └─────────────────────┬─────────────────────────────────────┘  │
+└────────────────────────┼─────────────────────────────────────────┘
+                         ↓
+        ┌────────────────┼────────────────┐
+        ↓                ↓                ↓
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  PostgreSQL  │  │  Cloudinary  │  │   Razorpay   │
+│   Database   │  │  (Images)    │  │  (Payments)  │
+└──────────────┘  └──────────────┘  └──────────────┘
+        ↓
+┌──────────────────────────┐
+│  Background Services     │
+│  • Email Worker (pg-boss)│
+│  • Scheduled Jobs (cron) │
+└──────────────────────────┘
+```
+
+### Request Processing Flow
+
+```
+HTTP Request
+    ↓
+┌───────────────────────┐
+│  Rate Limiter         │ ← Check request count
+│  (express-rate-limit) │
+└───────┬───────────────┘
+        │ ✓ Under limit
+        ↓
+┌───────────────────────┐
+│  Security Headers     │ ← Helmet.js
+│  (CSP, XSS, etc.)     │
+└───────┬───────────────┘
+        ↓
+┌───────────────────────┐
+│  CORS Check           │ ← Verify origin
+└───────┬───────────────┘
+        ↓
+┌───────────────────────┐
+│  Body Parser          │ ← Parse JSON/form data
+└───────┬───────────────┘
+        ↓
+┌───────────────────────┐
+│  JWT Auth (if needed) │ ← Verify token
+│  req.user = decoded   │
+└───────┬───────────────┘
+        ↓
+┌───────────────────────┐
+│  Route Handler        │ ← Match endpoint
+└───────┬───────────────┘
+        ↓
+┌───────────────────────┐
+│  Controller Logic     │ ← Process request
+│  • Validate input     │
+│  • Query database     │
+│  • Call services      │
+└───────┬───────────────┘
+        ↓
+┌───────────────────────┐
+│  Response             │ ← Send JSON
+└───────────────────────┘
+        │
+        ↓ (if error)
+┌───────────────────────┐
+│  Error Handler        │ ← Global catch
+└───────────────────────┘
+```
 
 ---
 
@@ -98,7 +207,8 @@ server/
 ├── middleware/                # 🛡️ Request interceptors
 │   ├── auth.js                # JWT authentication
 │   ├── admin.js               # Admin-only access
-│   └── errorHandler.js        # Global error handler
+│   ├── errorHandler.js        # Global error handler
+│   └── rateLimiter.js         # ✨ Rate limiting (6 limiters)
 │
 ├── routes/                    # 🛤️ API endpoint definitions
 │   ├── admin/                 # Admin-only routes
@@ -123,17 +233,20 @@ server/
 │   └── userRoutes.js          # User auth & profile routes
 │
 ├── services/                  # 🔨 Business logic services
-│   ├── emailService.js        # Email templates & sending
+│   ├── emailService.js        # Core email templates & sending
+│   ├── emailServiceWithQueue.js  # ✨ Email queue wrapper
+│   ├── emailQueue.js          # ✨ pg-boss queue management
 │   ├── emailService_backup.js # Email backup
 │   ├── emailService_clean.js  # Email clean version
 │   └── paymentService.js      # Payment processing logic
 │
 ├── jobs/                      # ⏰ Scheduled background jobs
+│   ├── emailWorker.js         # ✨ Email queue background processor
 │   ├── classRegistrationCleanupJob.js  # Archive expired classes
-│   ├── contactCleanupJob.js   # ✨ Delete old contact messages (3 months)
+│   ├── contactCleanupJob.js   # Delete old contact messages (3 months)
 │   ├── eventCleanupJob.js     # Archive past events + Cloudinary cleanup
 │   ├── eventStatusJob.js      # Update event status
-│   └── paymentCleanupJob.js   # ✨ Archive failed/pending payments (60 days)
+│   └── paymentCleanupJob.js   # Archive failed/pending payments (60 days)
 │
 ├── utils/                     # 🧰 Helper functions
 │   ├── cloudinary.js          # ✨ Centralized Cloudinary operations
@@ -151,7 +264,10 @@ server/
 │
 ├── docs/                      # 📚 Documentation
 │   ├── DB_SCHEMA.md           # Database schema documentation
-│   └── PROJECT_STRUCTURE.md   # This file
+│   ├── PROJECT_STRUCTURE.md   # ✨ This file (architecture guide)
+│   ├── PRODUCTION_READINESS.md # ✨ Production deployment checklist
+│   ├── RATE_LIMITING.md       # ✨ Rate limiting documentation
+│   └── RATE_LIMITING_SUMMARY.md # ✨ Rate limiting quick reference
 │
 ├── index.js                   # 🚀 Server entry point
 ├── package.json               # 📦 Dependencies & scripts
@@ -689,6 +805,187 @@ export const sendWelcomeEmail = async (userDetails) => {
 - Centralize payment verification
 - Handle webhook processing
 - Implement refund logic
+
+---
+
+## 🔄 Email Queue System
+
+### Architecture Overview
+
+The email queue system makes email sending **asynchronous and non-blocking** using PostgreSQL as the queue backend (pg-boss).
+
+### Flow Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    EMAIL SENDING FLOW                             │
+└──────────────────────────────────────────────────────────────────┘
+
+User Action (Register/Pay/Event)
+         │
+         ↓
+┌─────────────────┐
+│   Controller    │
+└────────┬────────┘
+         ↓
+┌──────────────────────────────┐
+│ emailServiceWithQueue.js     │  ← Wrapper
+│  sendWelcomeEmail(data)      │
+└───────┬────────────┬─────────┘
+        │            │
+   immediate=false   immediate=true
+        │            │
+        ↓            ↓
+┌───────────────┐   ┌──────────────┐
+│ queueEmail()  │   │emailService  │
+│ (pg-boss)     │   │ (direct send)│
+└───────┬───────┘   └──────────────┘
+        │
+        ↓ PostgreSQL
+┌────────────────┐
+│  Job Queue     │
+│  'send-email'  │
+└───────┬────────┘
+        │
+        ↓ Monitor
+┌────────────────┐
+│ emailWorker.js │  ← Background processor
+│  teamSize: 5   │
+└───────┬────────┘
+        │
+        ↓
+┌────────────────┐
+│ Send via SMTP  │
+└────────────────┘
+```
+
+### Components Table
+
+| File                                | Purpose              | Key Functions                                                |
+| ----------------------------------- | -------------------- | ------------------------------------------------------------ |
+| `services/emailQueue.js`            | Queue management     | `initializeEmailQueue()`, `queueEmail()`, `stopEmailQueue()` |
+| `jobs/emailWorker.js`               | Background processor | `startEmailWorker()`, monitors queue health                  |
+| `services/emailServiceWithQueue.js` | Wrapper layer        | All email functions with `immediate` option                  |
+| `services/emailService.js`          | Core email engine    | Actual SMTP sending, HTML templates                          |
+
+### Configuration
+
+| Setting                      | Value | Purpose                  |
+| ---------------------------- | ----- | ------------------------ |
+| retryLimit                   | 3     | Number of retry attempts |
+| retryDelay                   | 60s   | Delay between retries    |
+| retryBackoff                 | true  | Exponential backoff      |
+| expireInHours                | 48    | Job expiration time      |
+| teamSize                     | 5     | Concurrent emails        |
+| archiveCompletedAfterSeconds | 86400 | Archive after 24h        |
+
+### Priority System
+
+| Priority | Value | Use Case        | Example               |
+| -------- | ----- | --------------- | --------------------- |
+| High     | 10    | Critical emails | Payment confirmations |
+| Normal   | 0     | Regular emails  | User registrations    |
+| Low      | -10   | Bulk emails     | Admin notifications   |
+
+### Retry Mechanism
+
+```
+Attempt 1 (0s)     ──> Fail
+                       ↓
+                  Wait 60s
+                       ↓
+Attempt 2 (60s)    ──> Fail
+                       ↓
+                  Wait 120s (exponential)
+                       ↓
+Attempt 3 (180s)   ──> Fail
+                       ↓
+            Permanently failed
+                       ↓
+         handleFailedEmails()
+```
+
+---
+
+## 🚦 Rate Limiting System
+
+### Architecture
+
+```
+Request arrives
+       │
+       ↓
+┌──────────────────────┐
+│  Rate Limiter Check  │
+│  IP: 192.168.1.1     │
+│  Route: /api/login   │
+└──────┬───────────────┘
+       │
+       ↓
+┌─────────────────────────────┐
+│  Memory Store                │
+│  {                           │
+│    "IP:endpoint": {          │
+│      count: 5,               │
+│      resetTime: timestamp    │
+│    }                         │
+│  }                           │
+└─────────┬───────────────────┘
+          │
+          ↓
+    Count >= Limit?
+          │
+    ┌─────┴─────┐
+   YES          NO
+    │           │
+    ↓           ↓
+┌────────┐  ┌────────┐
+│ 429    │  │ Allow  │
+│ Error  │  │ +1     │
+└────────┘  └────────┘
+```
+
+### Rate Limiters Configuration
+
+| Limiter             | Window | Max | Applied To              | Special Config         |
+| ------------------- | ------ | --- | ----------------------- | ---------------------- |
+| generalLimiter      | 15 min | 100 | All routes              | -                      |
+| authLimiter         | 15 min | 5   | /login, /register       | skipSuccessfulRequests |
+| contactLimiter      | 1 hour | 3   | /contact                | -                      |
+| paymentLimiter      | 1 hour | 10  | Payment APIs            | -                      |
+| registrationLimiter | 1 hour | 5   | Event/club registration | -                      |
+| adminLimiter        | 15 min | 50  | Admin routes            | -                      |
+
+### Response Headers
+
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1735363200
+Retry-After: 900
+```
+
+### Error Response
+
+```json
+{
+  "error": "Too many login attempts. Try again after 15 minutes.",
+  "retryAfter": 1735363200
+}
+```
+
+### Routes Protected
+
+| Route                    | Limiter             | Reason                          |
+| ------------------------ | ------------------- | ------------------------------- |
+| POST /api/users/login    | authLimiter         | Prevent brute-force             |
+| POST /api/users/register | authLimiter         | Prevent spam accounts           |
+| POST /api/contact        | contactLimiter      | Prevent spam                    |
+| POST /api/payment/\*     | paymentLimiter      | Payment security                |
+| POST /api/registrations  | registrationLimiter | Prevent duplicate registrations |
+| POST /api/club/register  | registrationLimiter | Prevent abuse                   |
+| GET /api/events/\*       | generalLimiter      | General protection              |
+| /api/admin/\*            | adminLimiter        | Admin protection                |
 
 ---
 
@@ -1425,5 +1722,84 @@ Jobs not executing
 ---
 
 **Document Version:** 2.1  
+**Last Updated:** December 28, 2025  
+**Maintained by:** Development Team
+
+---
+
+## 📊 Current Architecture Status
+
+### Implemented Features
+
+#### Security & Performance ✅
+
+| Feature           | Implementation        | Status      | Details                      |
+| ----------------- | --------------------- | ----------- | ---------------------------- |
+| Rate Limiting     | express-rate-limit    | ✅ Complete | 6 limiters across all routes |
+| JWT Auth          | jsonwebtoken          | ✅ Complete | Stateless authentication     |
+| Role-Based Access | Middleware            | ✅ Complete | Admin vs User roles          |
+| Security Headers  | Helmet.js             | ✅ Complete | XSS, CSP protection          |
+| CORS              | cors middleware       | ✅ Complete | Configurable origins         |
+| SQL Injection     | Parameterized queries | ✅ Complete | All DB queries use $1, $2... |
+
+#### Email System ✅
+
+| Component       | Technology           | Status      | Details                         |
+| --------------- | -------------------- | ----------- | ------------------------------- |
+| Email Queue     | pg-boss              | ✅ Complete | PostgreSQL-based job queue      |
+| Email Worker    | Background processor | ✅ Complete | 5 concurrent emails             |
+| Email Service   | Nodemailer           | ✅ Complete | SMTP with HTML templates        |
+| Retry Logic     | pg-boss              | ✅ Complete | 3 attempts, exponential backoff |
+| Priority System | pg-boss              | ✅ Complete | High/Normal/Low priorities      |
+
+#### Background Jobs ✅
+
+| Job             | Schedule       | Status    | Purpose                           |
+| --------------- | -------------- | --------- | --------------------------------- |
+| Event Status    | Daily 2:00 AM  | ✅ Active | Update live flag                  |
+| Event Cleanup   | Daily 3:00 AM  | ✅ Active | Delete old events + Cloudinary    |
+| Class Cleanup   | Daily 00:00    | ✅ Active | Archive expired registrations     |
+| Contact Cleanup | Daily 4:00 AM  | ✅ Active | Delete old messages (3 months)    |
+| Payment Cleanup | Weekly Sun 5AM | ✅ Active | Archive failed payments (60 days) |
+| Email Worker    | Continuous     | ✅ Active | Process email queue               |
+
+### Technology Stack Summary
+
+**Backend:**
+
+- Node.js v18+
+- Express.js v5
+- PostgreSQL (production database)
+- pg-boss v10+ (email queue)
+
+**Security:**
+
+- express-rate-limit (API protection)
+- helmet (security headers)
+- bcryptjs (password hashing)
+- jsonwebtoken (authentication)
+- cors (cross-origin requests)
+
+**External APIs:**
+
+- Cloudinary (image storage/CDN)
+- Razorpay (payment gateway)
+- SMTP server (email delivery)
+
+---
+
+## 📚 Documentation Index
+
+| Document                                             | Purpose                        | Status     |
+| ---------------------------------------------------- | ------------------------------ | ---------- |
+| [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)         | Architecture guide (this file) | ✅ Current |
+| [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)   | Production checklist           | ✅ Current |
+| [DB_SCHEMA.md](DB_SCHEMA.md)                         | Database schema                | ✅ Current |
+| [RATE_LIMITING.md](RATE_LIMITING.md)                 | Rate limiting guide            | ✅ Current |
+| [RATE_LIMITING_SUMMARY.md](RATE_LIMITING_SUMMARY.md) | Rate limiting quick ref        | ✅ Current |
+
+---
+
+**Document Version:** 3.0  
 **Last Updated:** December 28, 2025  
 **Maintained by:** Development Team

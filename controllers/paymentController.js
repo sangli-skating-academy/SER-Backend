@@ -3,7 +3,7 @@ import razorpay, { verifyRazorpaySignature } from "../utils/razorpay.js";
 import {
   sendRegistrationConfirmationEmail,
   sendEventRegistrationAdminNotification,
-} from "../services/emailService.js";
+} from "../services/emailServiceWithQueue.js";
 
 export const createOrder = async (req, res) => {
   try {

@@ -8,6 +8,7 @@ import {
   cancelRegistration,
 } from "../controllers/registrationController.js";
 import auth from "../middleware/auth.js";
+import { registrationLimiter } from "../middleware/rateLimiter.js";
 import fs from "fs";
 import path from "path";
 
@@ -26,7 +27,14 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Register for event (individual or team)
-router.post("/", auth, upload.single("aadhaarImage"), registerForEvent);
+// Apply rate limiting to prevent spam registrations (5 per hour)
+router.post(
+  "/",
+  auth,
+  registrationLimiter,
+  upload.single("aadhaarImage"),
+  registerForEvent
+);
 
 // Get registrations for a user (for duplicate check)
 router.get("/user/:userId", auth, getUserRegistrations);
