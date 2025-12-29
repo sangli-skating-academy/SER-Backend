@@ -6,22 +6,6 @@
 
 ---
 
-## 📋 Table of Contents
-
-1. [Overview](#overview)
-2. [Architecture Philosophy](#architecture-philosophy)
-3. [System Architecture Diagrams](#system-architecture-diagrams)
-4. [Folder Structure](#folder-structure)
-5. [Core Components](#core-components)
-6. [Request Flow Diagrams](#request-flow-diagrams)
-7. [Rate Limiting System](#rate-limiting-system)
-8. [Best Practices](#best-practices)
-9. [Getting Started](#getting-started)
-10. [Common Patterns](#common-patterns)
-11. [Troubleshooting](#troubleshooting)
-
----
-
 ## 🎯 Overview
 
 This is a **production-grade Node.js/Express backend** for a sports event registration system. The application handles user authentication, event management, payment processing, team registrations, and automated cleanup jobs.
@@ -42,8 +26,6 @@ This is a **production-grade Node.js/Express backend** for a sports event regist
 ---
 
 ## 🏛️ Architecture Philosophy
-
-This backend follows **industry-standard patterns**:
 
 ### 1. **MVC Pattern (Model-View-Controller)**
 
@@ -75,7 +57,6 @@ Each layer has a **single responsibility**:
 ### 4. **Scalability**
 
 - Connection pooling for database
-- Asynchronous email queue
 - Scheduled jobs for maintenance
 - Modular code structure
 - Environment-based configuration
@@ -88,34 +69,34 @@ Each layer has a **single responsibility**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         CLIENT (React)                           │
-│                    http://localhost:5173                         │
+│                       CLIENT (React)                            │
+│                    http://localhost:5173                        │
 └────────────────────┬────────────────────────────────────────────┘
                      │ HTTP/HTTPS Requests
                      ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                      EXPRESS SERVER                              │
-│                    Port 3000/5000                                │
+│                      EXPRESS SERVER                             │
+│                    Port 3000/5000                               │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │  Security Layer (Helmet, CORS, Rate Limiting)             │  │
 │  └─────────────────────┬─────────────────────────────────────┘  │
-│                        ↓                                         │
+│                        ↓                                        │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │  Authentication Middleware (JWT)                          │  │
 │  └─────────────────────┬─────────────────────────────────────┘  │
-│                        ↓                                         │
+│                        ↓                                        │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │  Routes (User, Event, Payment, Admin, etc.)               │  │
 │  └─────────────────────┬─────────────────────────────────────┘  │
-│                        ↓                                         │
+│                        ↓                                        │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │  Controllers (Business Logic)                             │  │
 │  └─────────────────────┬─────────────────────────────────────┘  │
-│                        ↓                                         │
+│                        ↓                                        │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │  Services (Email Queue, Payment, Utils)                   │  │
 │  └─────────────────────┬─────────────────────────────────────┘  │
-└────────────────────────┼─────────────────────────────────────────┘
+└────────────────────────┼────────────────────────────────────────┘
                          ↓
         ┌────────────────┼────────────────┐
         ↓                ↓                ↓
@@ -126,7 +107,6 @@ Each layer has a **single responsibility**:
         ↓
 ┌──────────────────────────┐
 │  Background Services     │
-│  • Email Worker (pg-boss)│
 │  • Scheduled Jobs (cron) │
 └──────────────────────────┘
 ```
@@ -223,6 +203,7 @@ server/
 │   ├── contactRoutes.js       # Public contact routes
 │   ├── eventRoutes.js         # Public event routes
 │   ├── galleryRoutes.js       # Public gallery routes
+│   ├── healthRoute.js         # Health check endpoint
 │   ├── paymentRoutes.js       # Payment processing routes
 │   ├── registrationRoutes.js  # Event registration routes
 │   ├── securefile.js          # User file access
@@ -231,10 +212,7 @@ server/
 │   └── userRoutes.js          # User auth & profile routes
 │
 ├── services/                  # 🔨 Business logic services
-│   ├── emailService.js        # Direct email sending with Nodemailer
-│   ├── emailService_backup.js # Email backup
-│   ├── emailService_clean.js  # Email clean version
-│   └── paymentService.js      # Payment processing logic
+│   └── emailService.js        # Direct email sending with Nodemailer
 │
 ├── jobs/                      # ⏰ Scheduled background jobs
 │   ├── classRegistrationCleanupJob.js  # Archive expired classes
@@ -251,21 +229,18 @@ server/
 │   ├── access.js              # Access logs configuration
 │   └── error.js               # Error logs configuration
 │
-├── uploads/                   # 📤 File upload storage
-│   ├── aadhaar/               # User Aadhaar documents
-│   ├── events/                # Event images
-│   └── gallery/               # Gallery images
 │
 ├── docs/                      # 📚 Documentation
 │   ├── DB_SCHEMA.md           # Database schema documentation
-│   ├── PROJECT_STRUCTURE.md   # ✨ This file (architecture guide)
-│   ├── PRODUCTION_READINESS.md # ✨ Production deployment checklist
-│   ├── RATE_LIMITING.md       # ✨ Rate limiting documentation
-│   └── RATE_LIMITING_SUMMARY.md # ✨ Rate limiting quick reference
+│   ├── PRODUCTION_READINESS.md # Production deployment checklist
+│   └── PROJECT_STRUCTURE.md   # This file (architecture guide)
 │
 ├── index.js                   # 🚀 Server entry point
 ├── package.json               # 📦 Dependencies & scripts
+├── package-lock.json          # 📦 Dependency lock file
 ├── .env                       # 🔐 Environment variables (not in git)
+├── .env.example               # 📋 Environment template
+├── .git/                      # 🔧 Git repository data
 ├── .gitignore                 # 🚫 Git ignore rules
 └── node_modules/              # 📚 Installed packages
 
@@ -315,19 +290,11 @@ app.use("/api/admin/events", adminEventRoutes);
 app.use(errorHandler);
 ```
 
-**Best Practices:**
-
-- ✅ Load environment variables first
-- ✅ Apply security middleware early
-- ✅ Separate public and admin routes
-- ✅ Use global error handler at the end
-- ✅ Start scheduled jobs after server starts
-
 ---
 
 ### 2. **config/** - Configuration Layer
 
-#### **config.js** - Centralized Configuration ✨ NEW
+#### **config.js** - Centralized Configuration
 
 **Purpose:** Single source of truth for all environment variables
 
@@ -413,15 +380,6 @@ export function validateConfig() {
 }
 ```
 
-**Key Features:**
-
-- ✅ Centralized environment variable management
-- ✅ Configuration validation on startup
-- ✅ Grouped by feature/service
-- ✅ Default values for development
-- ✅ Type coercion (string → number for ports)
-- ✅ Array parsing for lists (emails, CORS origins)
-
 **Usage in Controllers:**
 
 ```javascript
@@ -437,14 +395,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 ```
-
-**Best Practices:**
-
-- ✅ Import only what you need from config
-- ✅ Never access process.env directly in controllers
-- ✅ Call validateConfig() on server startup
-- ✅ Keep all environment variables in one place
-- ✅ Use semantic groupings (SMTP_CONFIG, JWT_CONFIG)
 
 ---
 
@@ -462,14 +412,6 @@ const pool = new Pool({
 
 export default pool;
 ```
-
-**Best Practices:**
-
-- ✅ Use connection pooling (not individual connections)
-- ✅ Enable SSL for production databases
-- ✅ Never hardcode credentials
-- ✅ Test connection on startup
-- ✅ Handle connection errors gracefully
 
 **Common Operations:**
 
@@ -521,14 +463,6 @@ const userId = req.user.id;
 const userRole = req.user.role;
 ```
 
-**Best Practices:**
-
-- ✅ Support both header and cookie tokens
-- ✅ Set reasonable token expiration (7 days)
-- ✅ Use httpOnly cookies for XSS prevention
-- ✅ Handle token expiration gracefully
-- ✅ Never expose sensitive data in tokens
-
 ---
 
 #### **admin.js** - Authorization Middleware
@@ -551,13 +485,6 @@ const adminOnly = (req, res, next) => {
 router.delete("/users/:id", auth, adminOnly, deleteUser);
 ```
 
-**Best Practices:**
-
-- ✅ Always use after auth middleware
-- ✅ Return 403 (Forbidden) for non-admins
-- ✅ Log unauthorized access attempts
-- ✅ Consider role-based permissions for scalability
-
 ---
 
 #### **errorHandler.js** - Global Error Handler
@@ -572,14 +499,6 @@ const errorHandler = (err, req, res, next) => {
   });
 };
 ```
-
-**Best Practices:**
-
-- ✅ Use as last middleware in index.js
-- ✅ Log errors for debugging
-- ✅ Never expose stack traces in production
-- ✅ Return consistent error format
-- ✅ Set appropriate HTTP status codes
 
 ---
 
@@ -651,16 +570,6 @@ export const controllerFunction = async (req, res, next) => {
 - `verifyClubPayment` - Verify and confirm payment
 - `getUserMemberships` - Get user's active memberships
 
-**Best Practices:**
-
-- ✅ One controller per resource (users, events, etc.)
-- ✅ Use try-catch for async operations
-- ✅ Validate input before processing
-- ✅ Use parameterized queries (prevent SQL injection)
-- ✅ Return appropriate HTTP status codes
-- ✅ Don't expose internal error details
-- ✅ Keep controllers thin - move logic to services
-
 ---
 
 ### 5. **routes/** - API Endpoints
@@ -712,15 +621,6 @@ export default router;
 - `DELETE /api/admin/events/:id` - Delete event
 - `GET /api/admin/registrations/all` - All registrations
 - `POST /api/admin/gallery/add` - Add gallery image
-
-**Best Practices:**
-
-- ✅ Group related routes in separate files
-- ✅ Use consistent naming (plural nouns)
-- ✅ Apply middleware at route level
-- ✅ Use HTTP methods correctly (GET, POST, PATCH, DELETE)
-- ✅ Separate admin routes into admin/ folder
-- ✅ Document routes with comments
 
 **RESTful Conventions:**
 
@@ -778,15 +678,6 @@ export const sendWelcomeEmail = async (userDetails) => {
 };
 ```
 
-**Best Practices:**
-
-- ✅ Use HTML email templates
-- ✅ Include plain text fallback
-- ✅ Handle errors gracefully
-- ✅ Never fail requests if email fails
-- ✅ Log email sending status
-- ✅ Verify SMTP connection on startup
-
 ---
 
 #### **paymentService.js**
@@ -818,13 +709,13 @@ Request arrives
        │
        ↓
 ┌─────────────────────────────┐
-│  Memory Store                │
-│  {                           │
-│    "IP:endpoint": {          │
-│      count: 5,               │
-│      resetTime: timestamp    │
-│    }                         │
-│  }                           │
+│  Memory Store               │
+│  {                          │
+│    "IP:endpoint": {         │
+│      count: 5,              │
+│      resetTime: timestamp   │
+│    }                        │
+│  }                          │
 └─────────┬───────────────────┘
           │
           ↓
@@ -1028,18 +919,6 @@ cron.schedule("0 5 * * 0", async () => {
 | Contact Cleanup | Daily 4:00 AM         | 3 months                 | Delete                      |
 | Payment Cleanup | Weekly Sunday 5:00 AM | 60 days (failed/pending) | Archive                     |
 
-**Best Practices:**
-
-- ✅ Use cron syntax correctly
-- ✅ Set appropriate timezone
-- ✅ Log job execution with timestamps
-- ✅ Send notifications on completion
-- ✅ Handle errors gracefully
-- ✅ Archive data before deletion (for audit trail)
-- ✅ Test jobs in development mode
-- ✅ Delete external files (Cloudinary) non-blocking
-- ✅ Use emoji indicators for log clarity
-
 ---
 
 ### 8. **utils/** - Helper Functions
@@ -1088,17 +967,9 @@ await cloudinary.uploader.destroy(publicId, {
 });
 ```
 
-**Best Practices:**
-
-- ✅ One Cloudinary instance for entire app
-- ✅ Non-blocking deletion (use .then() for cleanup)
-- ✅ Extract publicId from URL using regex
-- ✅ Handle errors gracefully
-- ✅ Log all Cloudinary operations
-
 ---
 
-#### **razorpay.js** - Razorpay Utilities ✨ NEW
+#### **razorpay.js** - Razorpay Utilities
 
 **Purpose:** Centralized Razorpay configuration and utilities
 
@@ -1140,14 +1011,6 @@ const order = await razorpayInstance.orders.create(options);
 const isValid = verifyRazorpaySignature(orderId, paymentId, signature);
 ```
 
-**Best Practices:**
-
-- ✅ One Razorpay instance for entire app
-- ✅ Centralize signature verification logic
-- ✅ Never expose secret key to frontend
-- ✅ Validate all payments server-side
-- ✅ Log payment verification results
-
 ---
 
 #### **generateToken.js**
@@ -1165,168 +1028,6 @@ const generateToken = (id, email, role) => {
 };
 
 export default generateToken;
-```
-
-**Best Practices:**
-
-- ✅ Keep token payload minimal
-- ✅ Never store passwords in tokens
-- ✅ Set reasonable expiration
-- ✅ Use strong secret key
-- ✅ Rotate secrets periodically
-- ✅ Use centralized JWT_CONFIG
-
----
-
-### 9. **uploads/** - File Storage
-
-Local file storage for uploaded content (considering Cloudinary migration).
-
-**Structure:**
-
-```
-uploads/
-├── aadhaar/     # User Aadhaar documents (sensitive)
-├── events/      # Event images
-└── gallery/     # Gallery images
-```
-
-**Security:**
-
-- ✅ Aadhaar files require authentication
-- ✅ Public images served with CORS headers
-- ✅ File size limits (10MB)
-- ✅ File type validation
-- ✅ Unique filenames (prevent overwrite)
-
-**Migration to Cloudinary:**
-
-- Event images → Cloudinary ✅
-- Gallery images → Cloudinary ✅
-- Aadhaar documents → Local (security)
-
----
-
-## 🎯 Best Practices
-
-### 1. **Security**
-
-```javascript
-// ✅ DO: Parameterized queries
-pool.query("SELECT * FROM users WHERE id = $1", [userId]);
-
-// ❌ DON'T: String concatenation
-pool.query(`SELECT * FROM users WHERE id = ${userId}`);
-
-// ✅ DO: Hash passwords
-const hashed = await bcrypt.hash(password, 12);
-
-// ❌ DON'T: Store plain passwords
-password: req.body.password;
-
-// ✅ DO: Validate input
-if (!email || !password) {
-  return res.status(400).json({ error: "Missing fields" });
-}
-```
-
-### 2. **Error Handling**
-
-```javascript
-// ✅ DO: Try-catch in async functions
-export const controller = async (req, res, next) => {
-  try {
-    // ... logic
-  } catch (err) {
-    next(err);
-  }
-};
-
-// ✅ DO: Send appropriate status codes
-res.status(404).json({ error: "Not found" });
-res.status(400).json({ error: "Bad request" });
-res.status(500).json({ error: "Server error" });
-```
-
-### 3. **Database Queries**
-
-```javascript
-// ✅ DO: Use RETURNING for inserts
-const result = await pool.query(
-  "INSERT INTO users (...) VALUES (...) RETURNING id",
-  [values]
-);
-const userId = result.rows[0].id;
-
-// ✅ DO: Check for existence
-if (result.rows.length === 0) {
-  return res.status(404).json({ error: "Not found" });
-}
-
-// ✅ DO: Use transactions for related operations
-const client = await pool.connect();
-try {
-  await client.query("BEGIN");
-  await client.query("INSERT INTO ...");
-  await client.query("UPDATE ...");
-  await client.query("COMMIT");
-} catch (err) {
-  await client.query("ROLLBACK");
-} finally {
-  client.release();
-}
-```
-
-### 4. **API Design**
-
-```javascript
-// ✅ DO: Consistent response format
-res.json({
-  success: true,
-  data: result,
-  message: "Operation successful"
-});
-
-// ✅ DO: Use plural nouns for collections
-/api/users
-/api/events
-/api/registrations
-
-// ✅ DO: Version your APIs (future)
-/api/v1/users
-/api/v2/users
-```
-
-### 5. **Environment Variables**
-
-```javascript
-// ✅ DO: Use environment variables
-const port = process.env.PORT || 5000;
-
-// ❌ DON'T: Hardcode sensitive data
-const apiKey = "sk_test_123456789";
-
-// ✅ DO: Validate env vars on startup
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL not set");
-}
-```
-
-### 6. **Code Organization**
-
-```javascript
-// ✅ DO: Keep files focused
-userController.js → User operations only
-
-// ✅ DO: Export named functions
-export const getUser = async () => {};
-export const createUser = async () => {};
-
-// ✅ DO: Use async/await (not callbacks)
-const data = await pool.query("...");
-
-// ❌ DON'T: Use callbacks
-pool.query("...", (err, result) => {});
 ```
 
 ---
@@ -1385,14 +1086,11 @@ CLOUDINARY_API_SECRET=xxxxx
 
 # Admin Emails (for notifications)
 EVENT_CLEANUP_EMAILS=admin1@example.com,admin2@example.com
+ADMIN_NOTIFICATION_EMAILS=admin2@gmail.com
 ```
 
 4. **Initialize Database**
    Run SQL schema from `docs/DB_SCHEMA.md`:
-
-```bash
-psql -U user -d database -f schema.sql
-```
 
 5. **Start Server**
 
@@ -1412,213 +1110,13 @@ curl http://localhost:5000/health
 
 ---
 
-## 🔍 Common Patterns
-
-### Adding a New Feature
-
-**Example: Add "Attendance" feature**
-
-1. **Create Controller** (`controllers/attendanceController.js`)
-
-```javascript
-export const markAttendance = async (req, res) => {
-  try {
-    const { userId, eventId } = req.body;
-    const result = await pool.query(
-      "INSERT INTO attendance (user_id, event_id) VALUES ($1, $2) RETURNING *",
-      [userId, eventId]
-    );
-    res.status(201).json({ attendance: result.rows[0] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-```
-
-2. **Create Routes** (`routes/attendanceRoutes.js`)
-
-```javascript
-import { markAttendance } from "../controllers/attendanceController.js";
-import auth from "../middleware/auth.js";
-
-const router = express.Router();
-router.post("/", auth, markAttendance);
-export default router;
-```
-
-3. **Register Routes** (`index.js`)
-
-```javascript
-import attendanceRoutes from "./routes/attendanceRoutes.js";
-app.use("/api/attendance", attendanceRoutes);
-```
-
-4. **Update Database Schema** (`docs/DB_SCHEMA.md`)
-
-5. **Test Endpoints**
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**1. Database Connection Errors**
-
-```bash
-Error: connect ECONNREFUSED
-```
-
-**Solution:**
-
-- Check `DATABASE_URL` in `.env`
-- Verify PostgreSQL is running
-- Check firewall/network settings
-
-**2. JWT Token Invalid**
-
-```bash
-Error: Token is not valid
-```
-
-**Solution:**
-
-- Check `SESSION_SECRET` is set
-- Verify token hasn't expired
-- Clear cookies and re-login
-
-**3. Email Not Sending**
-
-```bash
-Error: Invalid login
-```
-
-**Solution:**
-
-- Enable "Less secure apps" OR use App Password (Gmail)
-- Check SMTP credentials
-- Verify SMTP port (587 for TLS)
-
-**4. File Upload Fails**
-
-```bash
-Error: ENOENT: no such file or directory
-```
-
-**Solution:**
-
-- Create upload directories manually
-- Check file permissions
-- Verify disk space
-
-**5. Scheduled Jobs Not Running**
-
-```bash
-Jobs not executing
-```
-
-**Solution:**
-
-- Check cron syntax
-- Verify timezone settings
-- Check server logs
-- Test jobs in development mode
-
----
-
-## 📞 Support & Contributing
+## 📞 Support
 
 **Documentation:**
 
 - Database Schema: `docs/DB_SCHEMA.md`
 - Project Structure: `docs/PROJECT_STRUCTURE.md` (this file)
-
-**Contact:**
-
-- Technical Lead: [Add contact]
-- Repository: [Add GitHub link]
-
-**Contributing:**
-
-1. Create feature branch
-2. Follow code conventions
-3. Write tests
-4. Update documentation
-5. Submit pull request
-
----
-
-## 🎉 Recent Improvements (v2.1)
-
-**December 28, 2025:**
-
-### 🔧 Configuration Centralization
-
-- ✅ Created `config/config.js` - Single source of truth for environment variables
-- ✅ Eliminated 150+ lines of duplicate configuration code
-- ✅ Added configuration validation on startup
-- ✅ Organized config by feature (SERVER, DATABASE, JWT, SMTP, CLOUDINARY, RAZORPAY, ADMIN, CORS)
-
-### 🖼️ Cloudinary Utilities
-
-- ✅ Created `utils/cloudinary.js` - Centralized Cloudinary operations
-- ✅ Replaced 4 duplicate Cloudinary configs across controllers
-- ✅ Added helper functions: `uploadToCloudinary()`, `deleteFromCloudinary()`
-
-### 💳 Razorpay Utilities
-
-- ✅ Created `utils/razorpay.js` - Centralized payment utilities
-- ✅ Replaced 2 duplicate Razorpay configs
-- ✅ Centralized signature verification logic
-- ✅ Added `getRazorpayKeyId()` helper
-
-### 🗑️ New Cleanup Jobs
-
-- ✅ **contactCleanupJob.js** - Deletes contact messages older than 3 months
-
-  - Daily at 4:00 AM
-  - Sends admin summary emails
-  - Keeps database lean
-
-- ✅ **paymentCleanupJob.js** - Archives failed/pending payments older than 60 days
-  - Weekly on Sundays at 5:00 AM
-  - Creates `payments_archive` table automatically
-  - Sends detailed reports with statistics
-  - Maintains audit trail
-
-### ✨ Enhanced Event Cleanup
-
-- ✅ Updated `eventCleanupJob.js` to delete Cloudinary files
-- ✅ Deletes event images from Cloudinary
-- ✅ Deletes aadhaar images from Cloudinary
-- ✅ Non-blocking deletion (doesn't fail job if Cloudinary unavailable)
-- ✅ Comprehensive logging with emoji indicators
-
-### 🎨 Gallery Improvements
-
-- ✅ Updated gallery DELETE endpoint to use centralized utilities
-- ✅ Non-blocking Cloudinary cleanup
-- ✅ Better error handling and logging
-
-### 📧 All Jobs Send Email Notifications
-
-- ✅ Detailed HTML email templates
-- ✅ Summary statistics
-- ✅ Error notifications
-- ✅ Environment indicators (production/development)
-
-### 📝 Code Quality
-
-- ✅ Updated 18+ backend files to use centralized config
-- ✅ Eliminated duplicate SMTP configs (3 instances)
-- ✅ Consistent error handling across all jobs
-- ✅ Environment-aware job execution (dev mode runs immediately)
-
----
-
-**Document Version:** 2.1  
-**Last Updated:** December 28, 2025  
-**Maintained by:** Development Team
+- Production Readiness: `docs/PRODUCTION_READINESS.md`
 
 ---
 
@@ -1675,18 +1173,6 @@ Jobs not executing
 - Cloudinary (image storage/CDN)
 - Razorpay (payment gateway)
 - Gmail SMTP (direct email delivery)
-
----
-
-## 📚 Documentation Index
-
-| Document                                             | Purpose                        | Status     |
-| ---------------------------------------------------- | ------------------------------ | ---------- |
-| [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)         | Architecture guide (this file) | ✅ Current |
-| [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md)   | Production checklist           | ✅ Current |
-| [DB_SCHEMA.md](DB_SCHEMA.md)                         | Database schema                | ✅ Current |
-| [RATE_LIMITING.md](RATE_LIMITING.md)                 | Rate limiting guide            | ✅ Current |
-| [RATE_LIMITING_SUMMARY.md](RATE_LIMITING_SUMMARY.md) | Rate limiting quick ref        | ✅ Current |
 
 ---
 
