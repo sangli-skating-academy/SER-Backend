@@ -3,7 +3,7 @@ import razorpay, { verifyRazorpaySignature } from "../utils/razorpay.js";
 import {
   sendClubRegistrationSuccessEmail,
   sendClubRegistrationAdminNotification,
-} from "../services/emailServiceWithQueue.js";
+} from "../services/emailService.js";
 
 // Create Razorpay order for club/class registration
 export const createClubOrder = async (req, res) => {

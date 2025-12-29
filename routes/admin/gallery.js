@@ -3,15 +3,24 @@ import pool from "../../config/db.js";
 import adminOnly from "../../middleware/admin.js";
 import auth from "../../middleware/auth.js";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 import cloudinary from "../../utils/cloudinary.js";
 import { SERVER_CONFIG } from "../../config/config.js";
 
 const router = express.Router();
 
-// Multer config for temp storage before Cloudinary upload
-const upload = multer({ dest: "uploads/gallery/" });
+// Use memoryStorage for Render (ephemeral filesystem)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed"), false);
+    }
+    cb(null, true);
+  },
+});
 
 // Helper to get base URL
 function getBaseUrl(req) {
@@ -24,19 +33,42 @@ router.patch(
   auth,
   adminOnly,
   upload.single("file"),
+  (err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res
+          .status(400)
+          .json({
+            error: "File too large",
+            message: "Image must be less than 10MB",
+          });
+      }
+      return res
+        .status(400)
+        .json({ error: "File upload error", message: err.message });
+    } else if (err) {
+      return res
+        .status(400)
+        .json({ error: "Invalid file", message: err.message });
+    }
+    next();
+  },
   async (req, res) => {
     const { id } = req.params;
     const { title, event_name, date, image_location } = req.body;
     let image_url = null;
     if (req.file) {
-      // Upload to Cloudinary
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "gallery",
-        resource_type: "image",
-      });
+      // Upload buffer directly to Cloudinary
+      const result = await cloudinary.uploader.upload(
+        `data:${req.file.mimetype};base64,${req.file.buffer.toString(
+          "base64"
+        )}`,
+        {
+          folder: "gallery",
+          resource_type: "image",
+        }
+      );
       image_url = result.secure_url;
-      // Remove temp file
-      fs.unlinkSync(req.file.path);
     }
     try {
       // Fetch old image url if new image uploaded
@@ -60,7 +92,7 @@ router.patch(
         params.push(id);
       }
       const result = await pool.query(query, params);
-      // Remove old image file or Cloudinary image if replaced
+      // Remove old image from Cloudinary if replaced
       if (image_url && oldImage && oldImage !== image_url) {
         if (oldImage.startsWith("http")) {
           // Delete from Cloudinary using public_id
@@ -73,9 +105,6 @@ router.patch(
               });
             } catch {}
           }
-        } else if (oldImage.includes("/uploads/gallery/")) {
-          const oldPath = oldImage.replace(getBaseUrl(req), "");
-          fs.unlink(path.join(process.cwd(), oldPath), () => {});
         }
       }
       res.json({ gallery: result.rows[0] });
@@ -93,18 +122,41 @@ router.post(
   auth,
   adminOnly,
   upload.single("file"),
+  (err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res
+          .status(400)
+          .json({
+            error: "File too large",
+            message: "Image must be less than 10MB",
+          });
+      }
+      return res
+        .status(400)
+        .json({ error: "File upload error", message: err.message });
+    } else if (err) {
+      return res
+        .status(400)
+        .json({ error: "Invalid file", message: err.message });
+    }
+    next();
+  },
   async (req, res) => {
     const { title, event_name, date, image_location } = req.body;
     let image_url = null;
     if (req.file) {
-      // Upload to Cloudinary
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "gallery",
-        resource_type: "image",
-      });
+      // Upload buffer directly to Cloudinary
+      const result = await cloudinary.uploader.upload(
+        `data:${req.file.mimetype};base64,${req.file.buffer.toString(
+          "base64"
+        )}`,
+        {
+          folder: "gallery",
+          resource_type: "image",
+        }
+      );
       image_url = result.secure_url;
-      // Remove temp file
-      fs.unlinkSync(req.file.path);
     }
     try {
       const result = await pool.query(

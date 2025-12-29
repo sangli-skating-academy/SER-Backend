@@ -28,7 +28,6 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^6.10.1",
     "pg": "^8.16.0",
-    "pg-boss": "^12.5.4",
     "razorpay": "^2.9.6"
   },
   "devDependencies": {

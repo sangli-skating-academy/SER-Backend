@@ -38,10 +38,6 @@ import { scheduleClassRegistrationCleanup } from "./jobs/classRegistrationCleanu
 import scheduleContactCleanup from "./jobs/contactCleanupJob.js";
 import schedulePaymentCleanup from "./jobs/paymentCleanupJob.js";
 
-// Import email queue services
-import { initializeEmailQueue, stopEmailQueue } from "./services/emailQueue.js";
-import { startEmailWorker } from "./jobs/emailWorker.js";
-
 // Validate required environment variables
 validateConfig();
 
@@ -142,15 +138,9 @@ app.use((req, res, next) => {
 });
 app.use(errorHandler);
 
-// Initialize email queue and worker before starting server
+// Start the server
 async function startServer() {
   try {
-    // Initialize email queue
-    await initializeEmailQueue();
-
-    // Start email worker
-    await startEmailWorker();
-
     // Start HTTP server
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
@@ -180,13 +170,11 @@ async function startServer() {
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   console.log("SIGTERM signal received: closing HTTP server");
-  await stopEmailQueue();
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
   console.log("SIGINT signal received: closing HTTP server");
-  await stopEmailQueue();
   process.exit(0);
 });
 

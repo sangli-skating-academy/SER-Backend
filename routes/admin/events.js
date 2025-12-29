@@ -3,17 +3,21 @@ import express from "express";
 import auth from "../../middleware/auth.js";
 import adminAuth from "../../middleware/admin.js";
 import multer from "multer";
-import path from "path";
 import cloudinary from "../../utils/cloudinary.js";
 import { SERVER_CONFIG } from "../../config/config.js";
-import fs from "fs";
 
 const router = express.Router();
 
-// Multer config for temp storage before Cloudinary upload
+// Use memoryStorage for Render (ephemeral filesystem)
 const upload = multer({
-  dest: "uploads/events/",
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed"), false);
+    }
+    cb(null, true);
+  },
 });
 
 function getBaseUrl(req) {
@@ -26,19 +30,42 @@ router.patch(
   auth,
   adminAuth,
   upload.single("file"), // Accept file as 'file' for consistency
+  (err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res
+          .status(400)
+          .json({
+            error: "File too large",
+            message: "Image must be less than 10MB",
+          });
+      }
+      return res
+        .status(400)
+        .json({ error: "File upload error", message: err.message });
+    } else if (err) {
+      return res
+        .status(400)
+        .json({ error: "Invalid file", message: err.message });
+    }
+    next();
+  },
   async (req, res) => {
     const { eventId } = req.params;
     let updateFields = req.body;
     let image_url = null;
     if (req.file) {
-      // Upload to Cloudinary
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "events",
-        resource_type: "image",
-      });
+      // Upload buffer directly to Cloudinary
+      const result = await cloudinary.uploader.upload(
+        `data:${req.file.mimetype};base64,${req.file.buffer.toString(
+          "base64"
+        )}`,
+        {
+          folder: "events",
+          resource_type: "image",
+        }
+      );
       image_url = result.secure_url;
-      // Remove temp file
-      fs.unlinkSync(req.file.path);
     }
     try {
       // Fetch old image url if new image uploaded
@@ -118,7 +145,7 @@ router.patch(
         )} WHERE id = $${idx} RETURNING *`,
         params
       );
-      // Remove old image file or Cloudinary image if replaced
+      // Remove old image from Cloudinary if replaced
       if (image_url && oldImage && oldImage !== image_url) {
         if (oldImage.startsWith("http")) {
           // Delete from Cloudinary using public_id
@@ -131,9 +158,6 @@ router.patch(
               });
             } catch {}
           }
-        } else if (oldImage.includes("/uploads/events/")) {
-          const oldPath = oldImage.replace(getBaseUrl(req), "");
-          fs.unlinkSync(path.join(process.cwd(), oldPath));
         }
       }
       if (result.rowCount === 0) {
@@ -148,103 +172,132 @@ router.patch(
 );
 
 // POST /api/admin/events
-router.post("/", auth, adminAuth, upload.single("file"), async (req, res) => {
-  let fields = req.body;
-  let image_url = null;
-  if (req.file) {
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(req.file.path, {
-      folder: "events",
-      resource_type: "image",
-    });
-    image_url = result.secure_url;
-    // Remove temp file
-    fs.unlinkSync(req.file.path);
-  }
-  try {
-    const allowedFields = [
-      "title",
-      "description",
-      "location",
-      "start_date",
-      "start_time", // <-- added
-      "gender",
-      "age_group",
-      "is_team_event",
-      "price_per_person",
-      "price_per_team",
-      "max_team_size",
-      "hashtags",
-      "is_featured",
-      "rules_and_guidelines",
-      "live", // <-- add live field
-      "event_category", // <-- add event_category
-      "skate_category", // <-- add skate_category
-    ];
-    let columns = [];
-    let values = [];
-    let params = [];
-    let idx = 1;
-    const numericFields = [
-      "price_per_person",
-      "price_per_team",
-      "max_team_size",
-    ];
-    for (const key of allowedFields) {
-      if (fields[key] !== undefined) {
-        let value = fields[key];
-        if (
-          numericFields.includes(key) &&
-          (value === "" || value === undefined)
-        ) {
-          value = null;
+router.post(
+  "/",
+  auth,
+  adminAuth,
+  upload.single("file"),
+  (err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res
+          .status(400)
+          .json({
+            error: "File too large",
+            message: "Image must be less than 10MB",
+          });
+      }
+      return res
+        .status(400)
+        .json({ error: "File upload error", message: err.message });
+    } else if (err) {
+      return res
+        .status(400)
+        .json({ error: "Invalid file", message: err.message });
+    }
+    next();
+  },
+  async (req, res) => {
+    let fields = req.body;
+    let image_url = null;
+    if (req.file) {
+      // Upload buffer directly to Cloudinary
+      const result = await cloudinary.uploader.upload(
+        `data:${req.file.mimetype};base64,${req.file.buffer.toString(
+          "base64"
+        )}`,
+        {
+          folder: "events",
+          resource_type: "image",
         }
-        columns.push(key);
+      );
+      image_url = result.secure_url;
+    }
+    try {
+      const allowedFields = [
+        "title",
+        "description",
+        "location",
+        "start_date",
+        "start_time", // <-- added
+        "gender",
+        "age_group",
+        "is_team_event",
+        "price_per_person",
+        "price_per_team",
+        "max_team_size",
+        "hashtags",
+        "is_featured",
+        "rules_and_guidelines",
+        "live", // <-- add live field
+        "event_category", // <-- add event_category
+        "skate_category", // <-- add skate_category
+      ];
+      let columns = [];
+      let values = [];
+      let params = [];
+      let idx = 1;
+      const numericFields = [
+        "price_per_person",
+        "price_per_team",
+        "max_team_size",
+      ];
+      for (const key of allowedFields) {
+        if (fields[key] !== undefined) {
+          let value = fields[key];
+          if (
+            numericFields.includes(key) &&
+            (value === "" || value === undefined)
+          ) {
+            value = null;
+          }
+          columns.push(key);
+          values.push(`$${idx}`);
+          if (
+            (key === "hashtags" ||
+              key === "rules_and_guidelines" ||
+              key === "event_category") &&
+            typeof value === "string"
+          ) {
+            try {
+              params.push(JSON.parse(value));
+            } catch {
+              params.push(value);
+            }
+          } else if (key === "skate_category" && typeof value === "string") {
+            try {
+              params.push(JSON.parse(value));
+            } catch {
+              params.push(value);
+            }
+          } else {
+            params.push(value);
+          }
+          idx++;
+        }
+      }
+      if (image_url) {
+        columns.push("image_url");
         values.push(`$${idx}`);
-        if (
-          (key === "hashtags" ||
-            key === "rules_and_guidelines" ||
-            key === "event_category") &&
-          typeof value === "string"
-        ) {
-          try {
-            params.push(JSON.parse(value));
-          } catch {
-            params.push(value);
-          }
-        } else if (key === "skate_category" && typeof value === "string") {
-          try {
-            params.push(JSON.parse(value));
-          } catch {
-            params.push(value);
-          }
-        } else {
-          params.push(value);
-        }
+        params.push(image_url);
         idx++;
       }
+      if (columns.length === 0) {
+        return res.status(400).json({ error: "No valid fields to insert." });
+      }
+      const result = await pool.query(
+        `INSERT INTO events (${columns.join(", ")}) VALUES (${values.join(
+          ", "
+        )}) RETURNING *`,
+        params
+      );
+      res.json({ success: true, event: result.rows[0] });
+    } catch (err) {
+      console.error("Error creating event:", err);
+      res.status(500).json({ error: "Failed to create event." });
     }
-    if (image_url) {
-      columns.push("image_url");
-      values.push(`$${idx}`);
-      params.push(image_url);
-      idx++;
-    }
-    if (columns.length === 0) {
-      return res.status(400).json({ error: "No valid fields to insert." });
-    }
-    const result = await pool.query(
-      `INSERT INTO events (${columns.join(", ")}) VALUES (${values.join(
-        ", "
-      )}) RETURNING *`,
-      params
-    );
-    res.json({ success: true, event: result.rows[0] });
-  } catch (err) {
-    console.error("Error creating event:", err);
-    res.status(500).json({ error: "Failed to create event." });
   }
-});
+);
 
 // DELETE /api/admin/events/:eventId
 router.delete("/:eventId", auth, adminAuth, async (req, res) => {

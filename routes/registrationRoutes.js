@@ -32,6 +32,29 @@ router.post(
   auth,
   registrationLimiter,
   upload.single("aadhaarImage"),
+  (err, req, res, next) => {
+    // Handle multer errors
+    if (err instanceof multer.MulterError) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({
+          error: "File too large",
+          message:
+            "Aadhaar image must be less than 5MB. Please upload a smaller file.",
+        });
+      }
+      return res.status(400).json({
+        error: "File upload error",
+        message: err.message,
+      });
+    } else if (err) {
+      // Handle other errors (like file type validation)
+      return res.status(400).json({
+        error: "Invalid file",
+        message: err.message || "Only image files are allowed",
+      });
+    }
+    next();
+  },
   registerForEvent
 );
 

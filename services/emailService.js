@@ -1629,6 +1629,9 @@ export const sendEventRegistrationAdminNotification = async (
   }
 };
 
+// Export transporter and SMTP_CONFIG for direct email sending
+export { transporter, SMTP_CONFIG };
+
 export default {
   sendWelcomeEmail,
   sendRegistrationConfirmationEmail,

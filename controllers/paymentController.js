@@ -3,7 +3,7 @@ import razorpay, { verifyRazorpaySignature } from "../utils/razorpay.js";
 import {
   sendRegistrationConfirmationEmail,
   sendEventRegistrationAdminNotification,
-} from "../services/emailServiceWithQueue.js";
+} from "../services/emailService.js";
 
 export const createOrder = async (req, res) => {
   try {
@@ -160,29 +160,32 @@ export const verifyPayment = async (req, res) => {
             }
           }
 
-          // Send confirmation email with payment details
-          sendRegistrationConfirmationEmail({
-            userEmail: emailData.user_email,
-            userName: emailData.username,
-            eventName: emailData.event_name || emailData.event_title,
-            eventStartDate: emailData.start_date,
-            eventStartTime: emailData.start_time,
-            eventLocation: emailData.location,
-            eventDescription: emailData.description,
-            eventPricePerPerson: emailData.price_per_person,
-            eventPricePerTeam: emailData.price_per_team,
-            registrationType: emailData.registration_type,
-            teamName: emailData.team_name,
-            teamMembers: teamMembersForEmail,
-            registrationDate: emailData.registration_date,
-            // Payment details
-            paymentId: emailData.razorpay_payment_id,
-            orderId: emailData.razorpay_order_id,
-            paidAmount: emailData.payment_amount,
-            paymentDate: new Date().toISOString(),
-            // User selected event category
-            userEventCategory: userEventCategory,
-          })
+          // Send confirmation email with payment details (immediate = true for direct sending)
+          sendRegistrationConfirmationEmail(
+            {
+              userEmail: emailData.user_email,
+              userName: emailData.username,
+              eventName: emailData.event_name || emailData.event_title,
+              eventStartDate: emailData.start_date,
+              eventStartTime: emailData.start_time,
+              eventLocation: emailData.location,
+              eventDescription: emailData.description,
+              eventPricePerPerson: emailData.price_per_person,
+              eventPricePerTeam: emailData.price_per_team,
+              registrationType: emailData.registration_type,
+              teamName: emailData.team_name,
+              teamMembers: teamMembersForEmail,
+              registrationDate: emailData.registration_date,
+              // Payment details
+              paymentId: emailData.razorpay_payment_id,
+              orderId: emailData.razorpay_order_id,
+              paidAmount: emailData.payment_amount,
+              paymentDate: new Date().toISOString(),
+              // User selected event category
+              userEventCategory: userEventCategory,
+            },
+            true
+          )
             .then(() => {
               console.log("✅ User confirmation email sent successfully");
             })
@@ -196,23 +199,26 @@ export const verifyPayment = async (req, res) => {
 
           console.log("📧 Preparing to send admin notification...");
 
-          // Send admin notification for event registration
-          sendEventRegistrationAdminNotification({
-            userName: emailData.username,
-            userEmail: emailData.user_email,
-            userPhone: emailData.user_phone || "N/A",
-            eventName: emailData.event_name || emailData.event_title,
-            eventStartDate: emailData.start_date,
-            eventLocation: emailData.location,
-            registrationType: emailData.registration_type,
-            teamName: emailData.team_name,
-            teamMembers: teamMembersForEmail,
-            paymentAmount: emailData.payment_amount,
-            paymentId: emailData.razorpay_payment_id,
-            orderId: emailData.razorpay_order_id,
-            registrationDate: emailData.registration_date,
-            userEventCategory: userEventCategory,
-          })
+          // Send admin notification for event registration (immediate = true for direct sending)
+          sendEventRegistrationAdminNotification(
+            {
+              userName: emailData.username,
+              userEmail: emailData.user_email,
+              userPhone: emailData.user_phone || "N/A",
+              eventName: emailData.event_name || emailData.event_title,
+              eventStartDate: emailData.start_date,
+              eventLocation: emailData.location,
+              registrationType: emailData.registration_type,
+              teamName: emailData.team_name,
+              teamMembers: teamMembersForEmail,
+              paymentAmount: emailData.payment_amount,
+              paymentId: emailData.razorpay_payment_id,
+              orderId: emailData.razorpay_order_id,
+              registrationDate: emailData.registration_date,
+              userEventCategory: userEventCategory,
+            },
+            true
+          )
             .then(() => {
               console.log("✅ Admin notification sent successfully");
             })

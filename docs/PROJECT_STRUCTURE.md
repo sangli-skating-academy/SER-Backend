@@ -14,12 +14,11 @@
 4. [Folder Structure](#folder-structure)
 5. [Core Components](#core-components)
 6. [Request Flow Diagrams](#request-flow-diagrams)
-7. [Email Queue System](#email-queue-system)
-8. [Rate Limiting System](#rate-limiting-system)
-9. [Best Practices](#best-practices)
-10. [Getting Started](#getting-started)
-11. [Common Patterns](#common-patterns)
-12. [Troubleshooting](#troubleshooting)
+7. [Rate Limiting System](#rate-limiting-system)
+8. [Best Practices](#best-practices)
+9. [Getting Started](#getting-started)
+10. [Common Patterns](#common-patterns)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -35,8 +34,7 @@ This is a **production-grade Node.js/Express backend** for a sports event regist
 - **Authentication:** JWT (JSON Web Tokens)
 - **File Storage:** Cloudinary (images)
 - **Payment Gateway:** Razorpay
-- **Email Service:** Nodemailer (SMTP)
-- **Email Queue:** pg-boss (PostgreSQL-based)
+- **Email Service:** Nodemailer (SMTP - Direct sending)
 - **Rate Limiting:** express-rate-limit
 - **Job Scheduler:** node-cron
 - **Security:** Helmet.js, CORS, bcryptjs
@@ -233,17 +231,13 @@ server/
 │   └── userRoutes.js          # User auth & profile routes
 │
 ├── services/                  # 🔨 Business logic services
-│   ├── emailService.js        # Core email templates & sending
-│   ├── emailServiceWithQueue.js  # ✨ Email queue wrapper
-│   ├── emailQueue.js          # ✨ pg-boss queue management
+│   ├── emailService.js        # Direct email sending with Nodemailer
 │   ├── emailService_backup.js # Email backup
 │   ├── emailService_clean.js  # Email clean version
 │   └── paymentService.js      # Payment processing logic
 │
 ├── jobs/                      # ⏰ Scheduled background jobs
-│   ├── emailWorker.js         # ✨ Email queue background processor
 │   ├── classRegistrationCleanupJob.js  # Archive expired classes
-│   ├── contactCleanupJob.js   # Delete old contact messages (3 months)
 │   ├── eventCleanupJob.js     # Archive past events + Cloudinary cleanup
 │   ├── eventStatusJob.js      # Update event status
 │   └── paymentCleanupJob.js   # Archive failed/pending payments (60 days)
@@ -805,105 +799,6 @@ export const sendWelcomeEmail = async (userDetails) => {
 - Centralize payment verification
 - Handle webhook processing
 - Implement refund logic
-
----
-
-## 🔄 Email Queue System
-
-### Architecture Overview
-
-The email queue system makes email sending **asynchronous and non-blocking** using PostgreSQL as the queue backend (pg-boss).
-
-### Flow Diagram
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                    EMAIL SENDING FLOW                             │
-└──────────────────────────────────────────────────────────────────┘
-
-User Action (Register/Pay/Event)
-         │
-         ↓
-┌─────────────────┐
-│   Controller    │
-└────────┬────────┘
-         ↓
-┌──────────────────────────────┐
-│ emailServiceWithQueue.js     │  ← Wrapper
-│  sendWelcomeEmail(data)      │
-└───────┬────────────┬─────────┘
-        │            │
-   immediate=false   immediate=true
-        │            │
-        ↓            ↓
-┌───────────────┐   ┌──────────────┐
-│ queueEmail()  │   │emailService  │
-│ (pg-boss)     │   │ (direct send)│
-└───────┬───────┘   └──────────────┘
-        │
-        ↓ PostgreSQL
-┌────────────────┐
-│  Job Queue     │
-│  'send-email'  │
-└───────┬────────┘
-        │
-        ↓ Monitor
-┌────────────────┐
-│ emailWorker.js │  ← Background processor
-│  teamSize: 5   │
-└───────┬────────┘
-        │
-        ↓
-┌────────────────┐
-│ Send via SMTP  │
-└────────────────┘
-```
-
-### Components Table
-
-| File                                | Purpose              | Key Functions                                                |
-| ----------------------------------- | -------------------- | ------------------------------------------------------------ |
-| `services/emailQueue.js`            | Queue management     | `initializeEmailQueue()`, `queueEmail()`, `stopEmailQueue()` |
-| `jobs/emailWorker.js`               | Background processor | `startEmailWorker()`, monitors queue health                  |
-| `services/emailServiceWithQueue.js` | Wrapper layer        | All email functions with `immediate` option                  |
-| `services/emailService.js`          | Core email engine    | Actual SMTP sending, HTML templates                          |
-
-### Configuration
-
-| Setting                      | Value | Purpose                  |
-| ---------------------------- | ----- | ------------------------ |
-| retryLimit                   | 3     | Number of retry attempts |
-| retryDelay                   | 60s   | Delay between retries    |
-| retryBackoff                 | true  | Exponential backoff      |
-| expireInHours                | 48    | Job expiration time      |
-| teamSize                     | 5     | Concurrent emails        |
-| archiveCompletedAfterSeconds | 86400 | Archive after 24h        |
-
-### Priority System
-
-| Priority | Value | Use Case        | Example               |
-| -------- | ----- | --------------- | --------------------- |
-| High     | 10    | Critical emails | Payment confirmations |
-| Normal   | 0     | Regular emails  | User registrations    |
-| Low      | -10   | Bulk emails     | Admin notifications   |
-
-### Retry Mechanism
-
-```
-Attempt 1 (0s)     ──> Fail
-                       ↓
-                  Wait 60s
-                       ↓
-Attempt 2 (60s)    ──> Fail
-                       ↓
-                  Wait 120s (exponential)
-                       ↓
-Attempt 3 (180s)   ──> Fail
-                       ↓
-            Permanently failed
-                       ↓
-         handleFailedEmails()
-```
 
 ---
 
@@ -1744,13 +1639,11 @@ Jobs not executing
 
 #### Email System ✅
 
-| Component       | Technology           | Status      | Details                         |
-| --------------- | -------------------- | ----------- | ------------------------------- |
-| Email Queue     | pg-boss              | ✅ Complete | PostgreSQL-based job queue      |
-| Email Worker    | Background processor | ✅ Complete | 5 concurrent emails             |
-| Email Service   | Nodemailer           | ✅ Complete | SMTP with HTML templates        |
-| Retry Logic     | pg-boss              | ✅ Complete | 3 attempts, exponential backoff |
-| Priority System | pg-boss              | ✅ Complete | High/Normal/Low priorities      |
+| Component     | Technology | Status      | Details                         |
+| ------------- | ---------- | ----------- | ------------------------------- |
+| Email Service | Nodemailer | ✅ Complete | Direct SMTP with HTML templates |
+| SMTP Server   | Gmail SMTP | ✅ Complete | Connection pooling enabled      |
+| Templates     | HTML/Text  | ✅ Complete | Registration, payment, admin    |
 
 #### Background Jobs ✅
 
@@ -1759,9 +1652,7 @@ Jobs not executing
 | Event Status    | Daily 2:00 AM  | ✅ Active | Update live flag                  |
 | Event Cleanup   | Daily 3:00 AM  | ✅ Active | Delete old events + Cloudinary    |
 | Class Cleanup   | Daily 00:00    | ✅ Active | Archive expired registrations     |
-| Contact Cleanup | Daily 4:00 AM  | ✅ Active | Delete old messages (3 months)    |
 | Payment Cleanup | Weekly Sun 5AM | ✅ Active | Archive failed payments (60 days) |
-| Email Worker    | Continuous     | ✅ Active | Process email queue               |
 
 ### Technology Stack Summary
 
@@ -1770,7 +1661,6 @@ Jobs not executing
 - Node.js v18+
 - Express.js v5
 - PostgreSQL (production database)
-- pg-boss v10+ (email queue)
 
 **Security:**
 
@@ -1784,7 +1674,7 @@ Jobs not executing
 
 - Cloudinary (image storage/CDN)
 - Razorpay (payment gateway)
-- SMTP server (email delivery)
+- Gmail SMTP (direct email delivery)
 
 ---
 
