@@ -1,25 +1,25 @@
 import express from "express";
 import multer from "multer";
-import path from "path";
 const router = express.Router();
 import {
   getUserDetailsByRegistration,
   updateUserDetailsByRegistration,
 } from "../controllers/userDetailsController.js";
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/aadhaar/");
+// Use memoryStorage for Render (ephemeral filesystem)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
   },
-  filename: (req, file, cb) => {
-    // Include user ID in filename for security
-    const userId = req.user?.id || "unknown";
-    const uniqueName = `${userId}-${Date.now()}-${file.originalname}`;
-    cb(null, uniqueName);
+  fileFilter: (req, file, cb) => {
+    // Accept images only
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed"), false);
+    }
+    cb(null, true);
   },
 });
-
-const upload = multer({ storage });
 
 import auth from "../middleware/auth.js";
 

@@ -138,7 +138,7 @@ export const updateUserDetailsByRegistration = async (req, res) => {
     // --- HANDLE AADHAAR IMAGE (file upload) ---
     // If using multer, req.file will be present for multipart/form-data
     if (req.file) {
-      // Remove old image if exists (local or cloudinary)
+      // Remove old image if exists (Cloudinary only)
       if (oldAadhaarImage && oldAadhaarImage.startsWith("http")) {
         // Delete from Cloudinary using public_id
         const matches = oldAadhaarImage.match(/\/aadhaar\/([^\.]+)\./);
@@ -150,21 +150,26 @@ export const updateUserDetailsByRegistration = async (req, res) => {
             });
           } catch {}
         }
-      } else if (oldAadhaarImage) {
-        const oldPath = `uploads/aadhaar/${path.basename(oldAadhaarImage)}`;
-        fs.unlink(oldPath, (err) => {}); // ignore error
       }
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "aadhaar",
-        resource_type: "image",
-      });
+
+      // Upload buffer directly to Cloudinary (no disk storage)
+      const userId = req.user?.id || "unknown";
+      const result = await cloudinary.uploader.upload(
+        `data:${req.file.mimetype};base64,${req.file.buffer.toString(
+          "base64"
+        )}`,
+        {
+          folder: "aadhaar",
+          resource_type: "image",
+          public_id: `${userId}-${Date.now()}`,
+        }
+      );
       fields.aadhaar_image = result.secure_url;
-      fs.unlinkSync(req.file.path);
     } else if (
       req.body &&
       (req.body.aadhaarImage === "null" || req.body.aadhaarImage === null)
     ) {
-      // Remove old image if user wants to clear (handle camelCase from frontend)
+      // Remove old image from Cloudinary if user wants to clear
       if (oldAadhaarImage && oldAadhaarImage.startsWith("http")) {
         const matches = oldAadhaarImage.match(/\/aadhaar\/([^\.]+)\./);
         if (matches && matches[1]) {
@@ -175,9 +180,6 @@ export const updateUserDetailsByRegistration = async (req, res) => {
             });
           } catch {}
         }
-      } else if (oldAadhaarImage) {
-        const oldPath = `uploads/aadhaar/${path.basename(oldAadhaarImage)}`;
-        fs.unlink(oldPath, (err) => {}); // ignore error
       }
       fields.aadhaar_image = null;
     }

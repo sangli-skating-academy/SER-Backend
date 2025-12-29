@@ -2,8 +2,6 @@
 import pool from "../config/db.js";
 import cloudinary from "../utils/cloudinary.js";
 import { sendRegistrationConfirmationEmail } from "../services/emailServiceWithQueue.js";
-import path from "path";
-import fs from "fs";
 
 export async function registerForEvent(req, res) {
   try {
@@ -19,12 +17,18 @@ export async function registerForEvent(req, res) {
     // Aadhaar image upload to Cloudinary
     let aadhaarImage = null;
     if (req.file) {
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "aadhaar",
-        resource_type: "image",
-      });
+      // Upload buffer directly to Cloudinary (no disk storage needed)
+      const result = await cloudinary.uploader.upload(
+        `data:${req.file.mimetype};base64,${req.file.buffer.toString(
+          "base64"
+        )}`,
+        {
+          folder: "aadhaar",
+          resource_type: "image",
+          public_id: `${userId}-${Date.now()}`, // Unique identifier
+        }
+      );
       aadhaarImage = result.secure_url;
-      fs.unlinkSync(req.file.path);
     }
 
     // Check if event is team event
@@ -246,10 +250,9 @@ export async function cancelRegistration(req, res) {
           });
         } catch {}
       }
-    } else if (aadhaarImage) {
-      const oldPath = `uploads/aadhaar/${path.basename(aadhaarImage)}`;
-      fs.unlink(oldPath, (err) => {});
     }
+    // No need to delete local files as we're using memory storage
+
     await pool.query(
       "UPDATE registrations SET status = 'cancelled' WHERE id = $1",
       [registrationId]

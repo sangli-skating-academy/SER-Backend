@@ -9,22 +9,21 @@ import {
 } from "../controllers/registrationController.js";
 import auth from "../middleware/auth.js";
 import { registrationLimiter } from "../middleware/rateLimiter.js";
-import fs from "fs";
-import path from "path";
-
 // Multer config for Aadhaar image upload
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/aadhaar/");
+// Use memoryStorage for Render (ephemeral filesystem)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
   },
-  filename: function (req, file, cb) {
-    // Include user ID in filename for security
-    const userId = req.user?.id || "unknown";
-    const uniqueName = `${userId}-${Date.now()}-${file.originalname}`;
-    cb(null, uniqueName);
+  fileFilter: (req, file, cb) => {
+    // Accept images only
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed"), false);
+    }
+    cb(null, true);
   },
 });
-const upload = multer({ storage });
 
 // Register for event (individual or team)
 // Apply rate limiting to prevent spam registrations (5 per hour)
