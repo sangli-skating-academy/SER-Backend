@@ -100,33 +100,49 @@ router.patch(
       let setClauses = [];
       let params = [];
       let idx = 1;
+
+      const numericFields = [
+        "price_per_person",
+        "price_per_team",
+        "max_team_size",
+      ];
+      const jsonbFields = [
+        "age_group",
+        "rules_and_guidelines",
+        "event_category",
+      ];
+      const textArrayFields = [
+        "hashtags",
+        "skate_category",
+      ];
+
       for (const key of allowedFields) {
         if (updateFields[key] !== undefined) {
-          setClauses.push(`${key} = $${idx}`);
-          // Parse JSON fields if needed
-          if (
-            (key === "hashtags" ||
-              key === "rules_and_guidelines" ||
-              key === "event_category") &&
-            typeof updateFields[key] === "string"
-          ) {
+          let value = updateFields[key];
+          console.log(`Processing field: ${key}, value: "${value}"`);
+
+          // Handle numeric fields: convert empty strings to null
+          if (numericFields.includes(key) && (value === "" || value === null || value === "null")) {
+            console.log(`Converting ${key} to null`);
+            value = null;
+          } else if (jsonbFields.includes(key) && typeof value === "string") {
+            // JSONB fields: ensure they are valid JSON strings (already strings from multer)
             try {
-              params.push(JSON.parse(updateFields[key]));
-            } catch {
-              params.push(updateFields[key]);
+              JSON.parse(value); // Validate JSON
+            } catch (err) {
+              console.warn(`Invalid JSON for field ${key}:`, err);
             }
-          } else if (
-            key === "skate_category" &&
-            typeof updateFields[key] === "string"
-          ) {
+          } else if (textArrayFields.includes(key) && typeof value === "string") {
+            // TEXT[] fields: parse strings into Javascript arrays for pg driver
             try {
-              params.push(JSON.parse(updateFields[key]));
-            } catch {
-              params.push(updateFields[key]);
+              value = JSON.parse(value);
+            } catch (err) {
+              console.warn(`Failed to parse array for field ${key}:`, err);
             }
-          } else {
-            params.push(updateFields[key]);
           }
+
+          setClauses.push(`${key} = $${idx}`);
+          params.push(value);
           idx++;
         }
       }
@@ -237,42 +253,48 @@ router.post(
       let values = [];
       let params = [];
       let idx = 1;
+
       const numericFields = [
         "price_per_person",
         "price_per_team",
         "max_team_size",
       ];
+      const jsonbFields = [
+        "age_group",
+        "rules_and_guidelines",
+        "event_category",
+      ];
+      const textArrayFields = [
+        "hashtags",
+        "skate_category",
+      ];
+
       for (const key of allowedFields) {
         if (fields[key] !== undefined) {
           let value = fields[key];
-          if (
-            numericFields.includes(key) &&
-            (value === "" || value === undefined)
-          ) {
+
+          // Handle numeric fields: convert empty strings to null
+          if (numericFields.includes(key) && (value === "" || value === null)) {
             value = null;
+          } else if (jsonbFields.includes(key) && typeof value === "string") {
+            // JSONB fields: ensure they are valid JSON strings (already strings from multer)
+            try {
+              JSON.parse(value); // Validate JSON
+            } catch (err) {
+              console.warn(`Invalid JSON for field ${key}:`, err);
+            }
+          } else if (textArrayFields.includes(key) && typeof value === "string") {
+            // TEXT[] fields: parse strings into Javascript arrays for pg driver
+            try {
+              value = JSON.parse(value);
+            } catch (err) {
+              console.warn(`Failed to parse array for field ${key}:`, err);
+            }
           }
+
           columns.push(key);
           values.push(`$${idx}`);
-          if (
-            (key === "hashtags" ||
-              key === "rules_and_guidelines" ||
-              key === "event_category") &&
-            typeof value === "string"
-          ) {
-            try {
-              params.push(JSON.parse(value));
-            } catch {
-              params.push(value);
-            }
-          } else if (key === "skate_category" && typeof value === "string") {
-            try {
-              params.push(JSON.parse(value));
-            } catch {
-              params.push(value);
-            }
-          } else {
-            params.push(value);
-          }
+          params.push(value);
           idx++;
         }
       }
